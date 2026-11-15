@@ -15,9 +15,9 @@ Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 
 | | Daño | Disparos/s | Cargador | Recarga | Alcance | Notas |
 |---|---|---|---|---|---|---|
-| Glock 17 (pistola) | 12 | 2,6 | 12 | 1,1 s | 165 px | 10 % crítico (×2) |
+| Glock 17 (pistola) | 12 | 2,6 | 17 | 1,4 s | 165 px | 10 % crítico (×2) |
 | MP5 (subfusil) | 7 | 9 | 30 | 1,7 s | 142 px | más dispersión |
-| Remington 870 (escopeta) | 6 × 8 | 1,1 | 6 | 2,1 s | 108 px | empuja a los zombis |
+| Remington 870 (escopeta) | 6 × 8 | 1,1 | 4+1 | 0,5 s por cartucho | 108 px | empuja a los zombis |
 
 | Zombi | Vida | Velocidad | Daño | Golpea cada |
 |---|---|---|---|---|
@@ -25,6 +25,7 @@ Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 | Corredor (desde la oleada 2) | 22 | 57 px/s | 6 | 0,7 s |
 
 - Jugador: 100 de vida, 87 px/s. Un zombi normal solo te mata en unos 10 s; tres a la vez, en unos 3,3 s.
+- La escopeta se recarga cartucho a cartucho y se puede interrumpir para disparar; si la recámara quedó vacía, al final monta la corredera (0,45 s).
 - Pistola contra zombi normal: 3 balas (~0,8 s). Subfusil: 6 balas (~0,6 s). Escopeta: un disparo a bocajarro.
 - Oleada n: 6 + 4·(n−1) zombis. Cada oleada les da un 8 % más de vida. Hay 4 s de descanso entre oleadas.
 - Cada zombi suelta de 1 a 2 monedas (el corredor, de 1 a 3) y un botiquín (+30) el 5 % de las veces.

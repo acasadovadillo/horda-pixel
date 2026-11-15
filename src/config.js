@@ -15,22 +15,25 @@ export const JUGADOR = {
   recogerMonedas: 45,    // radio del imán de monedas
 };
 
-// dano por bala, cadencia en disparos por segundo, balas por cargador, recarga en s,
+// dano por bala, cadencia en disparos por segundo, balas por cargador (capacidad real del arma), recarga en s,
 // alcance (px) para apuntar solo, dispersion en grados, perdigones por disparo,
 // empuje (px que retrocede el zombi por impacto), critico = probabilidad de doble daño.
 export const ARMAS = {
   pistola: {
-    dano: 12, cadencia: 2.6, cargador: 12, recarga: 1.1,
+    dano: 12, cadencia: 2.6, cargador: 17, recarga: 1.4,   // Glock 17: cargador de 17
     alcance: 165, velocidadBala: 420, dispersion: 3, perdigones: 1, empuje: 4.5,
     critico: 0.1, sacudida: 0.9, sonido: "pistola",
   },
   subfusil: {
-    dano: 7, cadencia: 9, cargador: 30, recarga: 1.7,
+    dano: 7, cadencia: 9, cargador: 30, recarga: 1.7,      // MP5: cargador de 30
     alcance: 142, velocidadBala: 450, dispersion: 9, perdigones: 1, empuje: 2.2,
     critico: 0.08, sacudida: 0.7, sonido: "subfusil",
   },
   escopeta: {
-    dano: 8, cadencia: 1.1, cargador: 6, recarga: 2.1,
+    dano: 8, cadencia: 1.1, cargador: 5, recarga: 0.5,     // Remington 870: 4 en el tubo + 1 en la recámara
+    porCartucho: true,     // se recarga de uno en uno (recarga = s por cartucho) y se puede interrumpir para disparar
+    preparar: 0.3,         // s para girar el arma antes del primer cartucho
+    corredera: 0.45,       // s para montar la corredera si la recámara quedó vacía
     alcance: 108, velocidadBala: 390, dispersion: 24, perdigones: 6, empuje: 9,
     critico: 0.05, sacudida: 3.2, sonido: "escopeta",
   },

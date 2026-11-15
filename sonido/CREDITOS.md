@@ -10,6 +10,9 @@ Grabaciones de [Freesound](https://freesound.org) con licencia **CC0** (dominio 
 | Disparo del MP5 | [MP5 submachine gun down the street](https://freesound.org/people/Franki-01234/sounds/201671/) (MP5A3 con fogueo) | Franki-01234 |
 | Recarga del MP5 | [MP5A3 Reload](https://freesound.org/people/oneshotofficial/sounds/616757/) | oneshotofficial |
 | Disparo de la Remington 870 | [Remington 870](https://freesound.org/people/areniporgen/sounds/702672/) | areniporgen |
+| Cartuchos entrando en la Remington 870 | [Loading Shotgun](https://freesound.org/people/Dentrabert/sounds/673317/) | Dentrabert |
 | Corredera de la Remington 870 | [Remington870_Pump](https://freesound.org/people/Stoniac/sounds/842736/) | Stoniac |
+
+También se descargó [load_gun_slow](https://freesound.org/people/mchrpt/sounds/660975/) (mchrpt, CC0) para comparar, pero no se usa: sus golpes eran de montar el arma, no de meter cartuchos.
 
 Los originales se guardan en `sonido/originales/` (no se suben al repositorio). `python3 sonido/recortar.py` vuelve a sacar los recortes en `assets/sonido/*.m4a`; los puntos de corte están en ese archivo.

@@ -3,7 +3,7 @@ import { PANTALLA, JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN } from "./config.js";
 import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, RADIO_STICK } from "./entrada.js";
-import { sonar, sonarRecarga, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
+import { sonar, sonarRecarga, sonarCartucho, sonarCorredera, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
 import { pantallaCompletaHorizontal } from "./pantalla.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
@@ -77,7 +77,16 @@ export class Juego {
   empezarRecarga() {
     const j = this.jugador, a = ARMAS[j.arma];
     if (j.recarga > 0 || j.cargador[j.arma] >= a.cargador || j.muerto) return;
+    if (a.porCartucho) {
+      // Escopeta: se gira el arma y se meten los cartuchos de uno en uno por debajo.
+      j.recamaraVacia = j.cargador[j.arma] === 0;
+      j.recarga = a.preparar + a.recarga;
+      j.recargaPaso = j.recarga;
+      sonarRecarga(j.arma, a.preparar);
+      return;
+    }
     j.recarga = a.recarga;
+    j.recargaPaso = a.recarga;
     sonarRecarga(j.arma, a.recarga);
   }
 
@@ -159,11 +168,29 @@ export class Juego {
     if (j.muerto) return;
     j.espera = Math.max(0, j.espera - dt);
     j.tDisparo += dt;
+    const z = this.zombiMasCercano(a.alcance);
     if (j.recarga > 0) {
       j.recarga -= dt;
-      if (j.recarga <= 0) { j.recarga = 0; j.cargador[j.arma] = a.cargador; }
+      if (j.recarga <= 0) {
+        j.recarga = 0;
+        if (!a.porCartucho) j.cargador[j.arma] = a.cargador;
+        else {
+          j.cargador[j.arma]++;
+          sonarCartucho();
+          if (j.cargador[j.arma] < a.cargador && !(z && j.cargador[j.arma] > 0)) {
+            j.recarga = j.recargaPaso = a.recarga;            // siguiente cartucho
+          } else if (j.recamaraVacia) {
+            j.recamaraVacia = false;                          // corredera para meter el primero en la recámara
+            sonarCorredera();
+            j.espera = Math.max(j.espera, a.corredera);
+          }
+        }
+      } else if (a.porCartucho && z && j.cargador[j.arma] > 0 && j.recarga < j.recargaPaso - 0.05) {
+        // Aparece un zombi: deja de meter cartuchos y dispara con los que ya tiene.
+        j.recarga = 0;
+        if (j.recamaraVacia) { j.recamaraVacia = false; sonarCorredera(); j.espera = Math.max(j.espera, a.corredera); }
+      }
     }
-    const z = this.zombiMasCercano(a.alcance);
     this.blanco = z;
     if (z) {
       j.sinBlanco = 0;
@@ -665,7 +692,7 @@ export class Juego {
     const a = ARMAS[j.arma], br = S["brazos_" + j.arma];
     const geo = this.geometriaArma();
     let fi = primero(br, "apuntar");
-    if (j.recarga > 0) fi = fotogramaPorAvance(br, "recargar", 1 - j.recarga / a.recarga);
+    if (j.recarga > 0) fi = fotogramaPorAvance(br, "recargar", 1 - j.recarga / (j.recargaPaso || a.recarga));
     else if (j.tDisparo < duracion(br, "disparar")) fi = fotograma(br, "disparar", j.tDisparo, false);
     const f = br.frames[fi];
     g.save();
@@ -784,8 +811,14 @@ export class Juego {
     if (j.recarga > 0) {
       const w = 56, x = W - 5 - w;
       g.fillStyle = "#0e0d12"; g.fillRect(x - 1, yMun + 1, w + 2, 8);
-      g.fillStyle = "#d9a233"; g.fillRect(x, yMun + 2, Math.round(w * (1 - j.recarga / a.recarga)), 6);
-      texto(g, t("recargando"), x - 5, yMun, "#ffffff", "der");
+      const avance = 1 - j.recarga / (j.recargaPaso || a.recarga);
+      const lleno = a.porCartucho ? (j.cargador[j.arma] + avance) / a.cargador : avance;
+      g.fillStyle = "#d9a233"; g.fillRect(x, yMun + 2, Math.round(w * Math.min(1, lleno)), 6);
+      if (a.porCartucho) {                            // una muesca por cartucho
+        g.fillStyle = "#0e0d12";
+        for (let k = 1; k < a.cargador; k++) g.fillRect(x + Math.round(w * k / a.cargador), yMun + 2, 1, 6);
+      }
+      texto(g, t("recargando") + (a.porCartucho ? " " + j.cargador[j.arma] + "/" + a.cargador : ""), x - 5, yMun, "#ffffff", "der");
     } else {
       const quedan = j.cargador[j.arma];
       texto(g, t(j.arma) + "  " + quedan + "/" + a.cargador, W - 5, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");

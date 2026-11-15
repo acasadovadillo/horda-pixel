@@ -89,6 +89,7 @@ const GRABACIONES = [
   "glock_disparo", "glock_cargador_fuera", "glock_cargador_dentro", "glock_corredera",
   "mp5_disparo_1", "mp5_disparo_2", "mp5_disparo_3", "mp5_recarga",
   "remington_disparo", "remington_corredera", "remington_corredera_rapida",
+  "remington_cartucho_1", "remington_cartucho_2", "remington_cartucho_3",
 ];
 const buffers = {};
 
@@ -141,18 +142,32 @@ export function sonarRecarga(arma, dur) {
   const pasos = {
     pistola: [["glock_cargador_fuera", 0.02, 0.9], ["glock_cargador_dentro", dur * 0.5, 1], ["glock_corredera", dur * 0.74, 0.9]],
     subfusil: [["mp5_recarga", Math.max(0, dur - 1.55), 1]],
-    escopeta: [["remington_corredera", Math.max(0, dur - 1.05), 1]],
+    escopeta: [],      // la escopeta suena cartucho a cartucho: sonarCartucho() y sonarCorredera()
   }[arma] || [];
   let alguna = false;
   for (const [n, t, v] of pasos) {
     const s = grabacion(n, v, t);
     if (s) { recargaSonando.push(s); alguna = true; }
   }
-  if (arma === "escopeta" && alguna) {
-    // Cartuchos entrando en el tubo: no hay grabación libre, se sintetizan unos clics metálicos.
-    for (let i = 0; i < 4; i++) golpeDeRuido(0.3, 0.04, "bandpass", 2400 + Math.random() * 600, 2.5, 0.15 + i * 0.22);
-  }
-  if (!alguna) SONIDOS.recargar();
+  if (!alguna && arma !== "escopeta") SONIDOS.recargar();
+}
+
+// Un cartucho entrando en el tubo de la escopeta.
+export function sonarCartucho() {
+  if (!ctx || silencio || ctx.state !== "running") return;
+  const n = 1 + Math.floor(Math.random() * 3);
+  if (grabacion("remington_cartucho_" + n, 0.95, 0, variacion())) return;
+  // Respaldo sintetizado: roce del cartucho y clic del retén.
+  golpeDeRuido(0.18, 0.06, "bandpass", 1200, 1.2);
+  golpeDeRuido(0.35, 0.03, "bandpass", 2600, 3, 0.07);
+}
+
+// Corredera de la escopeta (al acabar de recargar con la recámara vacía).
+export function sonarCorredera() {
+  if (!ctx || silencio || ctx.state !== "running") return;
+  if (grabacion("remington_corredera_rapida", 0.95)) return;
+  golpeDeRuido(0.3, 0.05, "highpass", 3000, 0.7);
+  golpeDeRuido(0.3, 0.05, "highpass", 2500, 0.7, 0.12);
 }
 
 const SONIDOS = {

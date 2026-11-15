@@ -20,6 +20,9 @@ CORTES = {
     "mp5_recarga":            ("mp5_recarga", 0.00, 1.47, 0.08),
     "remington_disparo":      ("remington_disparo", 0.00, 0.92, 0.35),
     "remington_corredera":    ("remington_corredera", 23.02, 24.02, 0.10),       # lenta, al acabar de recargar
+    "remington_cartucho_1":   ("escopeta_cargar", 1.10, 1.42, 0.08),   # cartuchos entrando en el tubo
+    "remington_cartucho_2":   ("escopeta_cargar", 6.67, 6.94, 0.08),
+    "remington_cartucho_3":   ("escopeta_cargar", 9.03, 9.30, 0.08),
     "remington_corredera_rapida": ("remington_corredera", 12.46, 12.95, 0.10),  # rápida, tras cada disparo
 }
 
