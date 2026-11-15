@@ -8,6 +8,7 @@ Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en 
 - **Recargar:** automático cuando se vacía el cargador, o tras 1,2 s sin zombis cerca. En el ordenador también con R.
 - **Armas:** los tres botones de abajo a la derecha (1, 2 y 3 en el teclado). Ahora están todas desbloqueadas para probarlas; más adelante se comprarán.
 - **Pausa:** botón arriba a la derecha (P o Esc). Desde ahí se quita el sonido, se cambia el idioma y se reinicia la partida.
+- **Cámara (zoom):** cerca, media (por defecto) o lejos, desde la pausa; se ve unos 100, 130 o 180 píxeles de alto del mundo (una persona mide 35). La interfaz no cambia de tamaño. Se guarda con la clave `horda-pixel:camara`; `?vista=N` en la dirección prueba otro valor. Solo se dispara a zombis que se ven en pantalla.
 - **Idioma:** español o inglés (EE. UU.), desde la pantalla de inicio (banderas de España y EE. UU. arriba a la derecha) o desde la pausa. Se guarda en el navegador con la clave `horda-pixel:idioma`; la primera vez se usa el idioma del sistema. Los textos están en `src/idioma.js`.
 
 ## Números (src/config.js)

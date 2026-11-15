@@ -3,7 +3,11 @@
 
 export const PANTALLA = {
   anchoMinimo: 460,      // píxeles de juego que caben como mínimo (móvil en horizontal)
-  altoMinimo: 260,
+  altoMinimo: 260,       // (la interfaz: botones, textos y joystick)
+  // Zoom del mundo (se elige en la pausa): alto aproximado que se ve, en píxeles de juego (una persona mide 35).
+  // Para probar otro valor: ?vista=150 en la dirección (?vista=0 = sin zoom, como antes).
+  vistas: { cerca: 100, media: 130, lejos: 180 },
+  vista: "media",
   joystick: { x: 46, y: 46 }, // centro del joystick, medido desde la esquina inferior izquierda
   oscuridad: 0.34,       // 0 = de día; cuanto más alto, más de noche (las farolas y el fuego iluminan)
 };

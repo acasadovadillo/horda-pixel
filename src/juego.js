@@ -13,14 +13,23 @@ const HOMBRO = { x: 20, y: 13 };
 const PECHO = 19;                       // px sobre los pies: adonde se apunta y donde impactan las balas
 const RADIO_CUERPO = 9;                 // radio del blanco que ofrece un zombi a las balas
 const vibrar = (p) => { if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(p); };
+const ALTURA_JUGADOR = 0.78;      // el jugador va algo por debajo del centro: se ve más de donde vienen
+const ZOOMS = ["cerca", "media", "lejos"];
+const CLAVE_ZOOM = "horda-pixel:camara";
+function leerZoom() {
+  try { const z = localStorage.getItem(CLAVE_ZOOM); if (ZOOMS.includes(z)) return z; } catch (e) { /* sin almacenamiento */ }
+  return PANTALLA.vista;
+}
 const rnd = (a, b) => a + Math.random() * (b - a);
 const rndInt = (a, b) => Math.floor(rnd(a, b + 1));
 
 export class Juego {
   constructor() {
     this.mapa = crearMapa();
-    this.ancho = 270; this.alto = 480;
+    this.ancho = 270; this.alto = 480;     // lo que se ve del mundo, en píxeles de juego (cambia con el zoom)
+    this.pantW = 270; this.pantH = 480;    // la pantalla en píxeles de interfaz
     this.seguro = { izq: 0, der: 0, arr: 0, aba: 0 };   // márgenes seguros en píxeles de juego
+    this.zoom = leerZoom();                              // "cerca" | "media" | "lejos"
     this.reiniciar();
     this.estado = "inicio";
     entrada.alPulsar.push((c) => this.tecla(c));
@@ -41,7 +50,7 @@ export class Juego {
     this.blanco = null;
     this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0, superada: 0 };
     this.stats = { bajas: 0, monedas: 0, tiempo: 0, disparos: 0, impactos: 0, dano: 0, recibido: 0 };
-    this.camara = { x: s.x - this.ancho / 2, y: s.y - this.alto * 0.68 };
+    this.camara = { x: s.x - this.ancho / 2, y: s.y - this.alto * ALTURA_JUGADOR };
     this.sacudida = 0;
     this.t = 0;
     this.estado = "jugando";
@@ -126,11 +135,17 @@ export class Juego {
     if (j.andando && !this.blanco) j.angulo = Math.atan2(my, mx);
   }
 
+  // Solo se dispara a lo que se ve: con zoom, el alcance del arma puede salirse de la pantalla.
+  seVe(z) {
+    const c = this.camara;
+    return z.x > c.x - 4 && z.x < c.x + this.ancho + 4 && z.y > c.y + 6 && z.y - 30 < c.y + this.alto;
+  }
+
   zombiMasCercano(alcance) {
     const j = this.jugador;
     let mejor = null, md = alcance * alcance;
     for (const z of this.zombis) {
-      if (z.muerto || z.aparece > 0.2) continue;
+      if (z.muerto || z.aparece > 0.2 || !this.seVe(z)) continue;
       const d = (z.x - j.x) ** 2 + (z.y - j.y) ** 2;
       if (d < md) { md = d; mejor = z; }
     }
@@ -509,7 +524,7 @@ export class Juego {
   moverCamara(dt) {
     const j = this.jugador, c = this.camara, m = this.mapa;
     const ox = j.x - this.ancho / 2;
-    const oy = j.y - this.alto * 0.68;          // se ve más por delante (arriba), de donde vienen
+    const oy = j.y - this.alto * ALTURA_JUGADOR;  // se ve más por delante (arriba), de donde vienen
     const k = 1 - Math.exp(-dt * 6);
     c.x += (ox - c.x) * k; c.y += (oy - c.y) * k;
     c.x = Math.max(0, Math.min(m.ancho - this.ancho, c.x));
@@ -618,18 +633,6 @@ export class Juego {
     g.globalAlpha = 1;
     g.restore();
 
-    // Pantalla roja al recibir daño y borde rojo cuando queda poca vida
-    if (j.golpe > 0) {
-      g.fillStyle = `rgba(200,20,30,${j.golpe * 1.4})`;
-      g.fillRect(0, 0, this.ancho, this.alto);
-    }
-    if (!j.muerto && j.vida <= 30) {
-      const a = 0.2 + 0.14 * Math.sin(this.t * 6);
-      g.strokeStyle = `rgba(184,31,38,${a})`;
-      g.lineWidth = 10;
-      g.strokeRect(0, 0, this.ancho, this.alto);
-    }
-    this.dibujarInterfaz(g);
   }
 
   dibujarLuces(g, cx, cy) {
@@ -748,10 +751,23 @@ export class Juego {
   // el juego en sí ocupa toda la pantalla.
   boton(x, y, w, h, accion) { entrada.botones.push({ x: x + this.seguro.izq, y: y + this.seguro.arr, w, h, accion }); }
 
-  get uiW() { return this.ancho - this.seguro.izq - this.seguro.der; }
-  get uiH() { return this.alto - this.seguro.arr - this.seguro.aba; }
+  get uiW() { return this.pantW - this.seguro.izq - this.seguro.der; }
+  get uiH() { return this.pantH - this.seguro.arr - this.seguro.aba; }
 
+  // Se dibuja en su propio lienzo transparente, encima del mundo y a otra escala (el mundo lleva zoom).
   dibujarInterfaz(g) {
+    const j = this.jugador;
+    // Pantalla roja al recibir daño y borde rojo cuando queda poca vida
+    if (j.golpe > 0) {
+      g.fillStyle = `rgba(200,20,30,${j.golpe * 1.4})`;
+      g.fillRect(0, 0, this.pantW, this.pantH);
+    }
+    if (!j.muerto && j.vida <= 30) {
+      const a = 0.2 + 0.14 * Math.sin(this.t * 6);
+      g.strokeStyle = `rgba(184,31,38,${a})`;
+      g.lineWidth = 10;
+      g.strokeRect(0, 0, this.pantW, this.pantH);
+    }
     g.save();
     g.translate(this.seguro.izq, this.seguro.arr);
     this.dibujarInterfazSegura(g);
@@ -828,7 +844,7 @@ export class Juego {
     const st = entrada.stick, js = S.joystick, mitad = Math.floor(js.w / 2);
     const iBase = primero(js, "base"), iBoton = primero(js, "boton");
     const base = { x: PANTALLA.joystick.x, y: H - PANTALLA.joystick.y };
-    entrada.base = { x: base.x + this.seguro.izq, y: base.y + this.seguro.arr }; entrada.ancho = this.ancho;
+    entrada.base = { x: base.x + this.seguro.izq, y: base.y + this.seguro.arr }; entrada.ancho = this.pantW;
     if (this.estado === "jugando" && !j.muerto) {
       let dx = 0, dy = 0;
       if (st) {
@@ -866,17 +882,20 @@ export class Juego {
 
   velo(g, a = 0.65) {
     g.fillStyle = `rgba(10,9,16,${a})`;
-    g.fillRect(-this.seguro.izq, -this.seguro.arr, this.ancho, this.alto);
+    g.fillRect(-this.seguro.izq, -this.seguro.arr, this.pantW, this.pantH);
   }
 
-  botonGrande(g, txt, y, accion, color = "#3b526b") {
-    const w = Math.max(150, anchoTexto(txt, 2) + 24), h = 30, x = Math.round(this.uiW / 2 - w / 2);
+  // Sin x ni ancho, centrado y del ancho del texto.
+  botonGrande(g, txt, y, accion, color = "#3b526b", x = null, w = null) {
+    w ??= Math.max(150, anchoTexto(txt, 2) + 24);
+    x ??= Math.round(this.uiW / 2 - w / 2);
+    const h = 30;
     y = Math.round(y);
     g.fillStyle = "#0e0d12"; g.fillRect(x, y, w, h);
     g.fillStyle = color; g.fillRect(x + 1, y + 1, w - 2, h - 2);
     g.fillStyle = "rgba(255,255,255,0.22)"; g.fillRect(x + 1, y + 1, w - 2, 2);
     g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(x + 1, y + h - 4, w - 2, 3);
-    texto(g, txt, this.uiW / 2, y + 5, "#ffffff", "centro", 2);
+    texto(g, txt, x + w / 2, y + 5, "#ffffff", "centro", 2);
     this.boton(x, y, w, h, accion);
   }
 
@@ -926,12 +945,25 @@ export class Juego {
 
   anchoSelector(k = 1) { return 2 * (S.banderas.w * k + 6) + 4 * k; }
 
+  // Cerca, media, lejos: cambia el zoom del mundo (main.js recalcula los lienzos).
+  cambiarZoom() {
+    this.zoom = ZOOMS[(ZOOMS.indexOf(this.zoom) + 1) % ZOOMS.length];
+    try { localStorage.setItem(CLAVE_ZOOM, this.zoom); } catch (e) { /* no pasa nada si no se guarda */ }
+    this.alCambiarCamara?.();
+    this.moverCamara(1);
+  }
+
   pantallaPausa(g) {
     const W = this.uiW, H = this.uiH;
     this.velo(g);
     texto(g, t("pausa"), W / 2, H * 0.1, "#ffffff", "centro", 3);
     this.botonGrande(g, t("seguir"), H * 0.24, () => { sonar("boton"); this.pausar(); });
-    this.botonGrande(g, t(silenciado() ? "sonidoNo" : "sonidoSi"), H * 0.24 + 38, () => { silenciar(!silenciado()); sonar("boton"); }, "#34363d");
+    // Sonido y cámara, uno al lado del otro
+    const txtS = t(silenciado() ? "sonidoNo" : "sonidoSi"), txtC = t("camara") + ": " + t("zoom_" + this.zoom);
+    const bw = Math.max(anchoTexto("SONIDO: NO", 2), anchoTexto(txtC, 2), anchoTexto(txtS, 2)) + 24, gap = 8;
+    const x0 = Math.round(W / 2 - bw - gap / 2);
+    this.botonGrande(g, txtS, H * 0.24 + 38, () => { silenciar(!silenciado()); sonar("boton"); }, "#34363d", x0, bw);
+    this.botonGrande(g, txtC, H * 0.24 + 38, () => { this.cambiarZoom(); sonar("boton"); }, "#34363d", x0 + bw + gap, bw);
     this.selectorIdioma(g, Math.round(W / 2 - this.anchoSelector(2) / 2), Math.round(H * 0.24 + 72), 2);
     this.botonGrande(g, t("reiniciar"), H * 0.24 + 122, () => this.empezar(), "#872a26");
   }

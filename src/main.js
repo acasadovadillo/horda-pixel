@@ -8,9 +8,15 @@ import { ANCHO, T } from "./mapa.js";
 
 const lienzo = document.getElementById("juego");
 const g = lienzo.getContext("2d");
-const bajo = document.createElement("canvas");      // aquí se dibuja el juego a 1x
+// Dos lienzos a resolución baja: el mundo (con zoom) y la interfaz encima (a su propia escala,
+// para que botones y textos no crezcan con el zoom).
+const mundo = document.createElement("canvas");
+const gm = mundo.getContext("2d");
+const bajo = document.createElement("canvas");      // interfaz
 const gb = bajo.getContext("2d");
-let escala = 1, juego = null;
+let escala = 1, escalaMundo = 1, juego = null;
+const pedida = new URLSearchParams(location.search).get("vista");
+const altoVista = () => /^\d{1,4}$/.test(pedida || "") ? +pedida : PANTALLA.vistas[juego?.zoom] ?? PANTALLA.vistas[PANTALLA.vista];
 
 function ajustar() {
   const dpr = window.devicePixelRatio || 1;
@@ -26,10 +32,16 @@ function ajustar() {
   const h = Math.floor(devH / escala);
   bajo.width = w; bajo.height = h;
   lienzo.width = w * escala; lienzo.height = h * escala;
+  // Zoom del mundo: también entero, y nunca más pequeño que la interfaz.
+  const av = altoVista();
+  escalaMundo = av > 0 ? Math.max(escala, Math.floor(devH / av)) : escala;
+  mundo.width = Math.min(Math.ceil(lienzo.width / escalaMundo), ANCHO * T);
+  mundo.height = Math.ceil(lienzo.height / escalaMundo);
   lienzo.style.width = (w * escala) / dpr + "px";
   lienzo.style.height = (h * escala) / dpr + "px";
   if (juego) {
-    juego.ancho = w; juego.alto = h;
+    juego.ancho = mundo.width; juego.alto = mundo.height;
+    juego.pantW = w; juego.pantH = h;
     // Márgenes seguros (muesca, esquinas redondeadas, barra de inicio) en píxeles de juego
     const cs = getComputedStyle(document.getElementById("seguro"));
     const enJuego = (v) => Math.ceil((parseFloat(v) || 0) * dpr / escala);
@@ -43,9 +55,16 @@ function aJuego(cx, cy) {
 }
 
 function pintar() {
+  gm.imageSmoothingEnabled = false;
+  juego.dibujar(gm);
   gb.imageSmoothingEnabled = false;
-  juego.dibujar(gb);
+  gb.clearRect(0, 0, bajo.width, bajo.height);
+  juego.dibujarInterfaz(gb);
   g.imageSmoothingEnabled = false;
+  g.fillStyle = "#0e0d12";
+  g.fillRect(0, 0, lienzo.width, lienzo.height);
+  const mw = mundo.width * escalaMundo, mh = mundo.height * escalaMundo;
+  g.drawImage(mundo, Math.floor((lienzo.width - mw) / 2), 0, mw, mh);
   g.drawImage(bajo, 0, 0, lienzo.width, lienzo.height);
 }
 
@@ -55,6 +74,7 @@ async function arrancar() {
   const carpeta = new URLSearchParams(location.search).get("assets");
   await cargarSprites(/^[a-z0-9_-]+$/i.test(carpeta || "") ? carpeta + "/" : "assets/");
   juego = new Juego();
+  juego.alCambiarCamara = ajustar;
   ajustar();
   window.addEventListener("resize", ajustar);
   window.addEventListener("orientationchange", () => setTimeout(ajustar, 300));
@@ -74,6 +94,7 @@ async function arrancar() {
 
   // Para pruebas automáticas (el panel oculto del navegador frena requestAnimationFrame).
   window.__juego = juego;
+  window.__escalas = () => ({ escala, escalaMundo, mundo: [mundo.width, mundo.height], interfaz: [bajo.width, bajo.height] });
   window.__avanzar = (seg, paso = 1 / 60) => {
     for (let t = 0; t < seg; t += paso) juego.actualizar(paso);
     pintar();
