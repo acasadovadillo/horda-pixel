@@ -3,7 +3,7 @@ import { PANTALLA, JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN } from "./config.js";
 import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, RADIO_STICK } from "./entrada.js";
-import { sonar, desbloquear, silenciar, silenciado } from "./audio.js";
+import { sonar, sonarRecarga, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
 import { pantallaCompletaHorizontal } from "./pantalla.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
@@ -70,6 +70,7 @@ export class Juego {
     const j = this.jugador;
     if (!a || a === j.arma || j.muerto) return;
     j.arma = a; j.recarga = 0; j.espera = 0.15; j.tDisparo = 9;
+    cancelarRecarga();
     sonar("recargado");
   }
 
@@ -77,7 +78,7 @@ export class Juego {
     const j = this.jugador, a = ARMAS[j.arma];
     if (j.recarga > 0 || j.cargador[j.arma] >= a.cargador || j.muerto) return;
     j.recarga = a.recarga;
-    sonar("recargar");
+    sonarRecarga(j.arma, a.recarga);
   }
 
   // ------------------------------------------------------------------ actualizar
@@ -160,7 +161,7 @@ export class Juego {
     j.tDisparo += dt;
     if (j.recarga > 0) {
       j.recarga -= dt;
-      if (j.recarga <= 0) { j.recarga = 0; j.cargador[j.arma] = a.cargador; sonar("recargado"); }
+      if (j.recarga <= 0) { j.recarga = 0; j.cargador[j.arma] = a.cargador; }
     }
     const z = this.zombiMasCercano(a.alcance);
     this.blanco = z;

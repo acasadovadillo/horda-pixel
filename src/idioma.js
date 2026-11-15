@@ -5,7 +5,7 @@ const TEXTOS = {
   es: {
     bajas: "BAJAS", oleada: "OLEADA", oleadaSuperada: "OLEADA SUPERADA",
     recargando: "RECARGANDO", muevete: "MUÉVETE AQUÍ",
-    pistola: "PISTOLA", subfusil: "SUBFUSIL", escopeta: "ESCOPETA",
+    pistola: "GLOCK 17", subfusil: "MP5", escopeta: "REMINGTON 870",
     tocaEmpezar: "TOCA PARA EMPEZAR",
     ayudaMover: "MUÉVETE CON EL JOYSTICK DE ABAJO A LA IZQUIERDA",
     ayudaDisparo: "DISPARAS SOLO AL ZOMBI MÁS CERCANO",
@@ -18,7 +18,7 @@ const TEXTOS = {
   en: {
     bajas: "KILLS", oleada: "WAVE", oleadaSuperada: "WAVE CLEARED",
     recargando: "RELOADING", muevete: "MOVE HERE",
-    pistola: "PISTOL", subfusil: "SMG", escopeta: "SHOTGUN",
+    pistola: "GLOCK 17", subfusil: "MP5", escopeta: "REMINGTON 870",
     tocaEmpezar: "TAP TO START",
     ayudaMover: "MOVE WITH THE JOYSTICK AT THE BOTTOM LEFT",
     ayudaDisparo: "YOU SHOOT THE CLOSEST ZOMBIE AUTOMATICALLY",

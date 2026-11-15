@@ -15,9 +15,9 @@ Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 
 | | Daño | Disparos/s | Cargador | Recarga | Alcance | Notas |
 |---|---|---|---|---|---|---|
-| Pistola | 12 | 2,6 | 12 | 1,1 s | 165 px | 10 % crítico (×2) |
-| Subfusil | 7 | 9 | 30 | 1,7 s | 142 px | más dispersión |
-| Escopeta | 6 × 8 | 1,1 | 6 | 2,1 s | 108 px | empuja a los zombis |
+| Glock 17 (pistola) | 12 | 2,6 | 12 | 1,1 s | 165 px | 10 % crítico (×2) |
+| MP5 (subfusil) | 7 | 9 | 30 | 1,7 s | 142 px | más dispersión |
+| Remington 870 (escopeta) | 6 × 8 | 1,1 | 6 | 2,1 s | 108 px | empuja a los zombis |
 
 | Zombi | Vida | Velocidad | Daño | Golpea cada |
 |---|---|---|---|---|
@@ -37,7 +37,8 @@ Todo se dibuja en Aseprite con scripts de Lua, un archivo por sprite en `arte/sp
 - `arte/probar.sh <carpeta> <sprite.lua>`: prueba un sprite y genera una vista ampliada; `python3 arte/montaje.py <carpeta> <salida.png>` monta una pantalla de ejemplo.
 
 ## Sonido
-Los sonidos se sintetizan con Web Audio en `src/audio.js`, sin archivos: disparos de cada arma, recarga, impacto, gruñidos, muerte, monedas, curación y aviso de oleada.
+- **Armas:** grabaciones reales de Freesound con licencia CC0 (Glock, MP5A3 y Remington 870): disparo, recarga por pasos (cargador fuera, dentro y corredera en la Glock) y corredera de la Remington tras cada disparo. Créditos y origen en `sonido/CREDITOS.md`; los recortes salen de `sonido/recortar.py` a `assets/sonido/`.
+- **Resto:** impactos, gruñidos, monedas, curación y aviso de oleada se sintetizan con Web Audio en `src/audio.js`, que también hace de respaldo si una grabación no carga.
 
 ## Ideas para siguientes versiones
 Tienda de armas con las monedas, mascotas de apoyo, trajes, zombi gordo y jefes, más mapas, y empaquetarlo como app con Capacitor (Android/iOS).

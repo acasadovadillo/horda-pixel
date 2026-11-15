@@ -22,6 +22,7 @@ export function desbloquear() {
     ruido = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = ruido.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    cargarGrabaciones();
   }
   if (ctx.state !== "running") {
     ctx.resume().catch(() => {});
@@ -82,16 +83,94 @@ function tono(tipo, f0, f1, vol, dur, retraso = 0) {
   o.stop(t + dur + 0.05);
 }
 
+// ---------------------------------------------------------------- grabaciones reales
+// Recortes de grabaciones de Freesound con licencia CC0 (ver sonido/CREDITOS.md y sonido/recortar.py).
+const GRABACIONES = [
+  "glock_disparo", "glock_cargador_fuera", "glock_cargador_dentro", "glock_corredera",
+  "mp5_disparo_1", "mp5_disparo_2", "mp5_disparo_3", "mp5_recarga",
+  "remington_disparo", "remington_corredera", "remington_corredera_rapida",
+];
+const buffers = {};
+
+function decodificar(datos) {
+  // Safari antiguo solo acepta la versión con funciones de vuelta.
+  return new Promise((ok, mal) => {
+    const p = ctx.decodeAudioData(datos, ok, mal);
+    if (p && p.then) p.then(ok, mal);
+  });
+}
+
+function cargarGrabaciones() {
+  for (const n of GRABACIONES) {
+    fetch("assets/sonido/" + n + ".m4a")
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+      .then(decodificar)
+      .then((b) => { buffers[n] = b; })
+      .catch(() => { /* si falla, se usa el sonido sintetizado */ });
+  }
+}
+
+// Reproduce una grabación. Devuelve el nodo (para poder pararlo) o null si no está cargada.
+function grabacion(nombre, vol = 1, retraso = 0, velocidad = 1) {
+  const b = buffers[nombre];
+  if (!b) return null;
+  const src = ctx.createBufferSource();
+  src.buffer = b;
+  src.playbackRate.value = velocidad;
+  const g = ctx.createGain();
+  g.gain.value = vol;
+  src.connect(g).connect(maestro);
+  src.start(ctx.currentTime + retraso);
+  return src;
+}
+
+const variacion = () => 0.96 + Math.random() * 0.08;
+
+// Sonidos de recarga que siguen sonando: se cortan si cambias de arma a mitad.
+let recargaSonando = [];
+
+export function cancelarRecarga() {
+  for (const s of recargaSonando) { try { s.stop(); } catch (e) { /* ya había acabado */ } }
+  recargaSonando = [];
+}
+
+// Recarga completa de cada arma, repartida a lo largo de su tiempo de recarga (s).
+export function sonarRecarga(arma, dur) {
+  if (!ctx || silencio || ctx.state !== "running") return;
+  cancelarRecarga();
+  const pasos = {
+    pistola: [["glock_cargador_fuera", 0.02, 0.9], ["glock_cargador_dentro", dur * 0.5, 1], ["glock_corredera", dur * 0.74, 0.9]],
+    subfusil: [["mp5_recarga", Math.max(0, dur - 1.55), 1]],
+    escopeta: [["remington_corredera", Math.max(0, dur - 1.05), 1]],
+  }[arma] || [];
+  let alguna = false;
+  for (const [n, t, v] of pasos) {
+    const s = grabacion(n, v, t);
+    if (s) { recargaSonando.push(s); alguna = true; }
+  }
+  if (arma === "escopeta" && alguna) {
+    // Cartuchos entrando en el tubo: no hay grabación libre, se sintetizan unos clics metálicos.
+    for (let i = 0; i < 4; i++) golpeDeRuido(0.3, 0.04, "bandpass", 2400 + Math.random() * 600, 2.5, 0.15 + i * 0.22);
+  }
+  if (!alguna) SONIDOS.recargar();
+}
+
 const SONIDOS = {
   pistola() {
+    if (grabacion("glock_disparo", 0.95, 0, variacion())) return;
     golpeDeRuido(0.7, 0.11, "lowpass", 2600);
     tono("triangle", 180, 50, 0.5, 0.09);
   },
   subfusil() {
+    if (grabacion("mp5_disparo_" + (1 + Math.floor(Math.random() * 3)), 0.85, 0, variacion())) return;
     golpeDeRuido(0.45, 0.06, "bandpass", 1900, 0.7);
     tono("square", 140, 60, 0.15, 0.05);
   },
   escopeta() {
+    if (grabacion("remington_disparo", 1, 0, variacion())) {
+      grabacion("remington_corredera_rapida", 0.8, 0.32);   // corredera tras cada disparo
+      return;
+    }
     golpeDeRuido(1.0, 0.32, "lowpass", 1500);
     tono("triangle", 120, 35, 0.8, 0.22);
     golpeDeRuido(0.25, 0.05, "highpass", 3000, 0.7, 0.42);       // bombeo
@@ -158,4 +237,4 @@ export function sonar(nombre, minimo = 0) {
 }
 
 // Para comprobar en pruebas: "running" si el audio está activo.
-export function estadoAudio() { return ctx ? ctx.state : "sin crear"; }
+export function estadoAudio() { return (ctx ? ctx.state : "sin crear") + ", grabaciones " + Object.keys(buffers).length + "/" + GRABACIONES.length; }
