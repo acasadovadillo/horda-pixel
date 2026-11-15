@@ -27,7 +27,13 @@ function ajustar() {
   lienzo.width = w * escala; lienzo.height = h * escala;
   lienzo.style.width = (w * escala) / dpr + "px";
   lienzo.style.height = (h * escala) / dpr + "px";
-  if (juego) { juego.ancho = w; juego.alto = h; }
+  if (juego) {
+    juego.ancho = w; juego.alto = h;
+    // Márgenes seguros (muesca, esquinas redondeadas, barra de inicio) en píxeles de juego
+    const cs = getComputedStyle(document.getElementById("seguro"));
+    const enJuego = (v) => Math.ceil((parseFloat(v) || 0) * dpr / escala);
+    juego.seguro = { izq: enJuego(cs.paddingLeft), der: enJuego(cs.paddingRight), arr: enJuego(cs.paddingTop), aba: enJuego(cs.paddingBottom) };
+  }
 }
 
 function aJuego(cx, cy) {

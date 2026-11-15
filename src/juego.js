@@ -19,6 +19,7 @@ export class Juego {
   constructor() {
     this.mapa = crearMapa();
     this.ancho = 270; this.alto = 480;
+    this.seguro = { izq: 0, der: 0, arr: 0, aba: 0 };   // márgenes seguros en píxeles de juego
     this.reiniciar();
     this.estado = "inicio";
     entrada.alPulsar.push((c) => this.tecla(c));
@@ -714,10 +715,22 @@ export class Juego {
   }
 
   // ------------------------------------------------------------------ interfaz
-  boton(x, y, w, h, accion) { entrada.botones.push({ x, y, w, h, accion }); }
+  // La interfaz se dibuja dentro de la zona segura (sin la muesca ni la barra de inicio del iPhone);
+  // el juego en sí ocupa toda la pantalla.
+  boton(x, y, w, h, accion) { entrada.botones.push({ x: x + this.seguro.izq, y: y + this.seguro.arr, w, h, accion }); }
+
+  get uiW() { return this.ancho - this.seguro.izq - this.seguro.der; }
+  get uiH() { return this.alto - this.seguro.arr - this.seguro.aba; }
 
   dibujarInterfaz(g) {
-    const W = this.ancho, H = this.alto, j = this.jugador;
+    g.save();
+    g.translate(this.seguro.izq, this.seguro.arr);
+    this.dibujarInterfazSegura(g);
+    g.restore();
+  }
+
+  dibujarInterfazSegura(g) {
+    const W = this.uiW, H = this.uiH, j = this.jugador;
 
     if (this.estado === "inicio") return this.pantallaInicio(g);
 
@@ -778,11 +791,11 @@ export class Juego {
     const st = entrada.stick, js = S.joystick, mitad = Math.floor(js.w / 2);
     const iBase = primero(js, "base"), iBoton = primero(js, "boton");
     const base = { x: PANTALLA.joystick.x, y: H - PANTALLA.joystick.y };
-    entrada.base = base; entrada.ancho = W;
+    entrada.base = { x: base.x + this.seguro.izq, y: base.y + this.seguro.arr }; entrada.ancho = this.ancho;
     if (this.estado === "jugando" && !j.muerto) {
       let dx = 0, dy = 0;
       if (st) {
-        dx = st.x - base.x; dy = st.y - base.y;
+        dx = st.x - entrada.base.x; dy = st.y - entrada.base.y;
         const l = Math.hypot(dx, dy);
         if (l > RADIO_STICK) { dx = dx / l * RADIO_STICK; dy = dy / l * RADIO_STICK; }
       } else if (entrada.mx || entrada.my) {     // con teclado también se ve moverse
@@ -815,22 +828,22 @@ export class Juego {
 
   velo(g, a = 0.65) {
     g.fillStyle = `rgba(10,9,16,${a})`;
-    g.fillRect(0, 0, this.ancho, this.alto);
+    g.fillRect(-this.seguro.izq, -this.seguro.arr, this.ancho, this.alto);
   }
 
   botonGrande(g, txt, y, accion, color = "#3b526b") {
-    const w = Math.max(150, anchoTexto(txt, 2) + 24), h = 30, x = Math.round(this.ancho / 2 - w / 2);
+    const w = Math.max(150, anchoTexto(txt, 2) + 24), h = 30, x = Math.round(this.uiW / 2 - w / 2);
     y = Math.round(y);
     g.fillStyle = "#0e0d12"; g.fillRect(x, y, w, h);
     g.fillStyle = color; g.fillRect(x + 1, y + 1, w - 2, h - 2);
     g.fillStyle = "rgba(255,255,255,0.22)"; g.fillRect(x + 1, y + 1, w - 2, 2);
     g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(x + 1, y + h - 4, w - 2, 3);
-    texto(g, txt, this.ancho / 2, y + 5, "#ffffff", "centro", 2);
+    texto(g, txt, this.uiW / 2, y + 5, "#ffffff", "centro", 2);
     this.boton(x, y, w, h, accion);
   }
 
   pantallaInicio(g) {
-    const W = this.ancho, H = this.alto;
+    const W = this.uiW, H = this.uiH;
     this.velo(g, 0.5);
     const tit = S.titulo;
     dibujar(g, tit, 0, Math.round(W / 2 - tit.w / 2), Math.round(H * 0.06));
@@ -855,7 +868,7 @@ export class Juego {
   }
 
   pantallaPausa(g) {
-    const W = this.ancho, H = this.alto;
+    const W = this.uiW, H = this.uiH;
     this.velo(g);
     texto(g, "PAUSA", W / 2, H * 0.1, "#ffffff", "centro", 3);
     this.botonGrande(g, "SEGUIR", H * 0.32, () => { sonar("boton"); this.pausar(); });
@@ -864,7 +877,7 @@ export class Juego {
   }
 
   pantallaFin(g) {
-    const W = this.ancho, H = this.alto, s = this.stats;
+    const W = this.uiW, H = this.uiH, s = this.stats;
     this.velo(g, 0.72);
     texto(g, "HAS MUERTO", W / 2, H * 0.06, "#e0403a", "centro", 3);
     const filas = [
