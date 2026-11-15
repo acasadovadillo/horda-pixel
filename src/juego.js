@@ -697,6 +697,10 @@ export class Juego {
     o.superada = Math.max(0, o.superada - dt);
     if (this.jugador.muerto) return;
     if (o.esperando) return;               // descanso entre rondas: hasta que pulse LISTO
+    if (o.n === 0 && !o.salio) {           // la ronda 1 empieza cuando sales de la base por primera vez
+      if (dentro(this.base, this.jugador.y)) return;
+      o.salio = true;
+    }
     if (o.descanso > 0) {
       o.descanso -= dt;
       if (o.descanso <= 0) {
@@ -1180,6 +1184,10 @@ export class Juego {
       if (dentroBase) this.botonGrande(g, t("tienda"), yb, () => this.abrirTienda(), "#8a6a24", xb, bw2);
       this.botonGrande(g, t("listo"), yb, () => this.listo(), "#4a6a34", dentroBase ? xb + bw2 + gap2 : xb, bw2);
       texto(g, t(dentroBase ? "ayudaDescanso" : "vuelveBase"), W / 2, yb + 36, "#d1cec0", "centro");
+    } else if (this.estado === "jugando" && !j.muerto && o.n === 0 && !o.salio) {
+      const aw = anchoTexto(t("salBase")) + 16;
+      g.fillStyle = "rgba(14,13,18,0.75)"; g.fillRect(Math.round(W / 2 - aw / 2), 36, aw, 17);
+      texto(g, t("salBase"), W / 2, 41, "#f2c84a", "centro");
     } else if (this.estado === "jugando" && !j.muerto && o.n > 0) {
       // En mitad de la ronda: TIENDA dentro de la base; fuera, si no te quedan balas, aviso de volver.
       const bw2 = anchoTexto(t("tienda"), 2) + 24, yb = 36;

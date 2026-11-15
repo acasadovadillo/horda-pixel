@@ -13,6 +13,7 @@ Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en 
 - **Base fortificada** (`src/base.js`, `src/tienda.js`, números en `BASE`, `MUNICION`, `MEJORAS` y `PRECIOS` de `src/config.js`):
   - **Estructura:** abajo del mapa hay un muro de lado a lado (17 tramos de 48 px) con un portón en la carretera. El jugador cruza el portón; los zombis no.
   - **Ataques al muro:** si el jugador está al otro lado, los zombis van al tramo que tiene delante y lo golpean (10 por golpe). Vida por tramo: madera 150, chapa 300, hormigón 500. Un tramo roto deja un hueco, y los zombis cercanos van hacia él.
+  - **Inicio:** empiezas dentro de la base y la ronda 1 no empieza hasta que sales por primera vez (un aviso arriba lo dice).
   - **Descanso:** al acabar cada ronda no salen zombis hasta pulsar LISTO, y las monedas del suelo vuelan hacia ti; mientras dura la ronda no desaparecen. Dentro de la base, el botón TIENDA abre la tienda con el juego parado, tanto en el descanso como en mitad de una ronda (si te quedas sin balas fuera, un aviso te dice que vuelvas).
   - **Armas:** al empezar solo tienes la Glock. La MP5 cuesta 80 y la Remington 120.
   - **Munición limitada:** se carga de la reserva y se compra por lotes. Glock: +34 por 5 (máximo 170). MP5: +60 por 9 (máximo 270). Remington: +10 por 9 (máximo 45). Sin balas en ninguna arma, sale «SIN BALAS».
