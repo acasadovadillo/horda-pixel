@@ -94,7 +94,7 @@ export class Juego {
   }
 
   tecla(c) {
-    if (/^Digit[1-7]$/.test(c)) this.cambiarArma(CASILLAS[+c.slice(5) - 1]);
+    if (/^Digit[1-7]$/.test(c)) this.cambiarArma(this.casillasVisibles()[+c.slice(5) - 1]);
     if (c === "KeyG") this.lanzar("granada");
     if (c === "KeyF") this.lanzar("molotov");
     if (c === "KeyR") this.empezarRecarga();
@@ -160,6 +160,9 @@ export class Juego {
     if (ARMAS[n].cuerpo) return j.armas[n];
     return j.armas[n] && (j.cargador[n] > 0 || j.reserva[n] > 0);
   }
+
+  // Casillas de la barra: el cuerpo a cuerpo y las armas de fuego que ya tienes.
+  casillasVisibles() { return CASILLAS.filter((c) => c === "cuerpo" || this.jugador.armas[c]); }
 
   // Sprites de un arma: brazos que la sujetan e icono (con los de la pistola si aún no está dibujada).
   brazos(n) { return S["brazos_" + n] || S.brazos_pistola; }
@@ -1466,23 +1469,23 @@ export class Juego {
 
     // Armas (abajo a la derecha; en disparo manual, abajo en el centro porque ahí va el joystick de apuntar).
     // Las que no has comprado salen con candado.
-    // La primera casilla es la del cuerpo a cuerpo (bate o machete).
+    // Solo las armas que tienes; la primera casilla es la del cuerpo a cuerpo (bate o machete).
     const manual = this.disparo === "manual";
-    const slotW = 38, slotH = 24, gap = 3, totalW = (slotW + gap) * CASILLAS.length - gap;
+    const casillas = this.casillasVisibles();
+    const slotW = 38, slotH = 24, gap = 3, totalW = (slotW + gap) * casillas.length - gap;
     const x0 = manual ? Math.round(W / 2 - totalW / 2) : W - totalW - 5, y0 = H - slotH - 8;
     const xDer = x0 + totalW;                         // borde derecho de las armas (para la munición)
-    CASILLAS.forEach((casilla, k) => {
+    casillas.forEach((casilla, k) => {
       const nombre = casilla === "cuerpo" ? j.cuerpo : casilla;
       const x = x0 + k * (slotW + gap), sel = nombre === j.arma;
       g.fillStyle = "#0e0d12"; g.fillRect(x, y0, slotW, slotH);
       g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(x + 1, y0 + 1, slotW - 2, slotH - 2);
       if (sel) { g.fillStyle = "#f2c84a"; g.fillRect(x + 1, y0 + 1, slotW - 2, 2); }
-      const spr = this.iconoArma(nombre), tiene = j.armas[nombre];
-      g.globalAlpha = sel ? 1 : tiene ? 0.7 : 0.25;
+      const spr = this.iconoArma(nombre);
+      g.globalAlpha = sel ? 1 : 0.7;
       dibujar(g, spr, 0, x + Math.floor((slotW - spr.w) / 2), y0 + 1 + Math.floor((slotH - spr.h) / 2));
       g.globalAlpha = 1;
-      if (!tiene) this.icono(g, 13, x + slotW / 2 - 8, y0 + 4, 16);
-      else if (!this.conBalas(nombre)) texto(g, "0", x + slotW - 3, y0 + slotH - 11, "#ff5a5a", "der");
+      if (!this.conBalas(nombre)) texto(g, "0", x + slotW - 3, y0 + slotH - 11, "#ff5a5a", "der");
       // Con el bate y el machete, un puntito: tocando otra vez se cambia de uno a otro
       if (casilla === "cuerpo" && j.armas.bate && j.armas.machete) { g.fillStyle = "#f2c84a"; g.fillRect(x + slotW - 5, y0 + slotH - 5, 2, 2); }
       this.boton(x - 1, y0 - 6, slotW + 2, slotH + 14, () => this.cambiarArma(casilla));
