@@ -1,4 +1,4 @@
--- iconos_tienda (24x24, 14 fotogramas): iconos de las tarjetas de la tienda de la base.
+-- iconos_tienda (24x24, 19 fotogramas): iconos de las tarjetas de la tienda de la base.
 -- Se ven sobre un panel oscuro (#26252e / #34363d). Luz arriba a la izquierda, contorno de 1 px
 -- (tono oscuro del propio material arriba a la izquierda, tinta abajo a la derecha).
 -- Cada pieza se dibuja en su propia capa y se perfila antes de pegarla: así las piezas que se
@@ -619,6 +619,123 @@ iconos[14] = function(img)
     L.px(t, 10, 15, LATON[1]); L.px(t, 13, 16, LATON[4])
     L.rect(t, 10, 14, 4, 1, LATON[4])
   end)
+end
+
+
+---------------------------------------------------------------- armas nuevas (2026-11-15)
+local PINT = L.rampa("pintura")
+local CRIS = rampa({ "1f2a1c", "33452c", "4f6640", "7a9160", "b5c99a" })   -- vidrio verde de botella
+local GASO = rampa({ "5c2c0c", "8a4a14", "b8741e" })                      -- gasolina dentro de la botella
+
+-- 14. Munición del fusil: peine de cinco balas largas.
+iconos[15] = function(img)
+  capa(img, function(t)
+    for i = 0, 4 do
+      local x = 3 + i * 4
+      -- punta afilada de cobre, cuello estrecho, vaina larga de latón
+      L.px(t, x + 1, 3, COBRE[5]); L.px(t, x + 1, 4, COBRE[4]); L.px(t, x, 5, COBRE[4]); L.px(t, x + 1, 5, COBRE[5]); L.px(t, x + 2, 5, COBRE[2])
+      L.px(t, x, 6, COBRE[3]); L.px(t, x + 1, 6, COBRE[4]); L.px(t, x + 2, 6, COBRE[2])
+      L.px(t, x + 1, 7, LATON[5]); L.px(t, x, 7, LATON[4]); L.px(t, x + 2, 7, LATON[3])
+      for y = 8, 18 do L.px(t, x, y, LATON[4]); L.px(t, x + 1, y, LATON[5]); L.px(t, x + 2, y, LATON[3]) end
+      L.px(t, x + 2, 9, LATON[2]); L.px(t, x, 16, LATON[3])
+    end
+  end)
+  capa(img, function(t)                          -- peine de acero que las sujeta
+    L.rect(t, 2, 18, 20, 3, MET[3]); L.rect(t, 2, 18, 20, 1, MET[5]); L.rect(t, 2, 20, 20, 1, MET[2])
+    for i = 0, 4 do L.px(t, 4 + i * 4, 19, MET[1]) end
+  end)
+end
+
+-- 15. Virotes de ballesta: tres en diagonal, con punta de acero y plumas.
+local function virote(t, x0, y0, x1, y1)
+  barra(t, x0, y0, x1, y1, 0.8, function(tt, s) return tono(MAD, s, true) end)
+  -- punta
+  local dx, dy = x1 - x0, y1 - y0
+  local l = sqrt(dx * dx + dy * dy)
+  local ux, uy = dx / l, dy / l
+  for k = 0, 3 do
+    local cx, cy = x1 + ux * k, y1 + uy * k
+    L.px(t, floor(cx), floor(cy), k < 2 and MET[5] or MET[6])
+    if k < 2 then L.px(t, floor(cx - uy), floor(cy + ux), MET[3]); L.px(t, floor(cx + uy), floor(cy - ux), MET[4]) end
+  end
+  -- plumas
+  for k = 0, 3 do
+    local cx, cy = x0 + ux * k, y0 + uy * k
+    L.px(t, floor(cx - uy * 1.6), floor(cy + ux * 1.6), ROJO[2])
+    L.px(t, floor(cx + uy * 1.6), floor(cy - ux * 1.6), TELA[3])
+  end
+end
+iconos[16] = function(img)
+  capa(img, function(t) virote(t, 3, 17, 16, 4) end)
+  capa(img, function(t) virote(t, 5, 21, 19, 7) end)
+  capa(img, function(t) virote(t, 9, 21, 20, 10) end)
+  capa(img, function(t)                          -- cinta que las ata
+    L.rect(t, 9, 13, 4, 2, CARTON[3]); L.rect(t, 9, 13, 4, 1, CARTON[5])
+  end)
+end
+
+-- 16. Gasolina: bidón rojo con asa de tres agujeros y boquilla.
+iconos[17] = function(img)
+  capa(img, function(t)                          -- cuerpo
+    caja(t, 4, 7, 15, 15, PINT, 3)
+    L.rect(t, 5, 8, 1, 13, PINT[5])
+    -- aspa estampada
+    for k = 0, 8 do
+      L.px(t, 7 + k, 10 + k, PINT[2]); L.px(t, 7 + k, 18 - k, PINT[2])
+      L.px(t, 7 + k, 9 + k, PINT[4]); L.px(t, 7 + k, 17 - k, PINT[4])
+    end
+    L.rect(t, 4, 14, 15, 1, PINT[2])
+  end)
+  capa(img, function(t)                          -- asa
+    L.rect(t, 5, 3, 10, 4, PINT[3]); L.rect(t, 5, 3, 10, 1, PINT[5])
+    for i = 0, 2 do L.rect(t, 6 + i * 3, 4, 2, 2, TINTA) end
+  end)
+  capa(img, function(t)                          -- boquilla con tapón
+    L.rect(t, 15, 3, 3, 4, MET[4]); L.rect(t, 15, 3, 3, 1, MET[6]); L.px(t, 17, 5, MET[2])
+    L.rect(t, 14, 2, 5, 1, MET[3])
+  end)
+end
+
+-- 17. Granada de mano: cuerpo ovalado verde oliva con cuadrícula, espoleta, palanca y anilla.
+iconos[18] = function(img)
+  capa(img, function(t)
+    barra(t, 11, 9.5, 11, 21, function(u) return 4.6 * sqrt(max(0.05, 1 - (2 * u - 1) ^ 2 * 0.75)) end,
+      function(u, s) return tono(OLIVA, s, true) end, true)
+    -- cuadrícula de la camisa de fragmentación
+    for _, y in ipairs({ 12, 15, 18 }) do for x = 7, 15 do if L.opaco(t, x, y) then L.px(t, x, y, OLIVA[2]) end end end
+    for _, x in ipairs({ 9, 13 }) do for y = 9, 21 do if L.opaco(t, x, y) then L.px(t, x, y, OLIVA[2]) end end end
+  end)
+  capa(img, function(t)                          -- espoleta de acero
+    L.rect(t, 9, 6, 5, 3, MET[4]); L.rect(t, 9, 6, 5, 1, MET[6]); L.rect(t, 13, 7, 1, 2, MET[2])
+  end)
+  capa(img, function(t)                          -- palanca pegada al costado
+    L.rect(t, 13, 5, 4, 1, MET[5]); L.rect(t, 16, 6, 1, 9, MET[4]); L.px(t, 16, 6, MET[6]); L.px(t, 15, 15, MET[3])
+  end)
+  capa(img, function(t)                          -- anilla del pasador
+    arco(t, 6, 6, 1.4, 2.6, 0, 360)
+    for y = 0, W - 1 do for x = 0, W - 1 do
+      local c = L.get(t, x, y)
+      if c == VERDE[3] then L.px(t, x, y, LATON[4]) elseif c == VERDE[4] then L.px(t, x, y, LATON[5]) elseif c == VERDE[2] then L.px(t, x, y, LATON[2]) end
+    end end
+    L.px(t, 8, 7, LATON[3])
+  end)
+end
+
+-- 18. Cóctel molotov: botella verde con gasolina y un trapo ardiendo en la boca.
+iconos[19] = function(img)
+  capa(img, function(t)                          -- botella
+    barra(t, 12, 12, 12, 22, 3.6, function(u, s) return u > 0.35 and tono(GASO, s, true) or tono(CRIS, s, true) end, true)
+    barra(t, 12, 6, 12, 12, 1.6, function(u, s) return tono(CRIS, s, true) end)
+    L.px(t, 10, 13, CRIS[5]); L.px(t, 10, 14, CRIS[5]); L.px(t, 10, 16, GASO[3])
+  end)
+  capa(img, function(t)                          -- trapo metido en la boca
+    L.rect(t, 11, 3, 2, 4, TELA[2]); L.px(t, 11, 3, TELA[4]); L.px(t, 13, 4, TELA[1]); L.px(t, 13, 5, TELA[2])
+  end)
+  capa(img, function(t)                          -- llama
+    L.px(t, 12, 0, FUEGO[3]); L.rect(t, 11, 1, 2, 1, FUEGO[3]); L.px(t, 13, 1, FUEGO[2])
+    L.rect(t, 10, 2, 4, 1, FUEGO[4]); L.px(t, 14, 2, FUEGO[2]); L.px(t, 9, 2, FUEGO[2])
+    L.px(t, 11, 2, FUEGO[5])
+  end, true)
 end
 
 L.construir("iconos_tienda", W, W, iconos, {}, 0.1)

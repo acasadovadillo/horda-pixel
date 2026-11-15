@@ -22,7 +22,19 @@ export const JUGADOR = {
 // dano por bala, cadencia en disparos por segundo, balas por cargador (capacidad real del arma), recarga en s,
 // alcance (px) para apuntar solo, dispersion en grados, perdigones por disparo,
 // empuje (px que retrocede el zombi por impacto), critico = probabilidad de doble daño.
+// Cuerpo a cuerpo (cuerpo: true): sin munición. alcance = px desde los pies, arco = grados del barrido,
+// golpe = s que dura el barrido (el golpe llega a mitad), cadencia = golpes por segundo.
+// atraviesa = zombis que cruza una bala; flecha = la bala es una flecha que se queda en el suelo y se recoge;
+// llama = lanza llamas que prenden fuego (quema = s ardiendo).
 export const ARMAS = {
+  bate: {
+    cuerpo: true, dano: 22, cadencia: 1.5, alcance: 27, arco: 110, golpe: 0.3, empuje: 16,
+    critico: 0.06, sacudida: 1.4, sonido: "bate",
+  },
+  machete: {
+    cuerpo: true, dano: 34, cadencia: 2.0, alcance: 25, arco: 95, golpe: 0.24, empuje: 6,
+    critico: 0.22, sacudida: 0.9, sonido: "machete",
+  },
   pistola: {
     dano: 12, cadencia: 2.6, cargador: 17, recarga: 1.4,   // Glock 17: cargador de 17
     alcance: 165, velocidadBala: 420, dispersion: 3, perdigones: 1, empuje: 4.5,
@@ -41,7 +53,34 @@ export const ARMAS = {
     alcance: 108, velocidadBala: 390, dispersion: 24, perdigones: 6, empuje: 9,
     critico: 0.05, sacudida: 3.2, sonido: "escopeta",
   },
+  francotirador: {
+    dano: 95, cadencia: 0.75, cargador: 5, recarga: 2.4,   // fusil de cerrojo: 5 balas
+    alcance: 250, velocidadBala: 760, dispersion: 0.6, perdigones: 1, empuje: 12,
+    critico: 0.2, sacudida: 2.8, sonido: "francotirador", atraviesa: 3,
+  },
+  ballesta: {
+    dano: 50, cadencia: 1.1, cargador: 1, recarga: 0.85,   // un virote cada vez
+    alcance: 175, velocidadBala: 300, dispersion: 1.5, perdigones: 1, empuje: 8,
+    critico: 0.15, sacudida: 0.4, sonido: "ballesta", atraviesa: 2, flecha: true,
+  },
+  lanzallamas: {
+    dano: 3, cadencia: 22, cargador: 100, recarga: 2.6,    // cargador = gasolina del depósito (1 por llama)
+    alcance: 70, velocidadBala: 135, dispersion: 18, perdigones: 1, empuje: 0.4,
+    critico: 0, sacudida: 0.25, sonido: "lanzallamas", llama: true, quema: 3.5,
+  },
 };
+
+// Armas de fuego, en el orden de la barra (el cuerpo a cuerpo va delante, en una sola casilla).
+export const ARMAS_FUEGO = ["pistola", "subfusil", "escopeta", "francotirador", "ballesta", "lanzallamas"];
+export const CUERPO = ["bate", "machete"];
+
+// Granadas y cócteles molotov: se llevan aparte y se lanzan con su botón.
+export const LANZABLES = {
+  granada: { max: 4, precio: 12, dano: 120, radio: 46, mecha: 1.25, alcance: 125 },
+  molotov: { max: 4, precio: 10, radio: 30, duracion: 6, alcance: 115 },
+};
+// Zombis ardiendo (lanzallamas y molotov): vida que pierden por segundo.
+export const FUEGO = { dano: 11, danoSuelo: 4 };
 
 export const ZOMBIS = {
   normal: {
@@ -89,20 +128,26 @@ export const MUNICION = {
   pistola: { inicial: 68, maximo: 170, lote: 34, precio: 5 },
   subfusil: { inicial: 60, maximo: 270, lote: 60, precio: 9 },
   escopeta: { inicial: 10, maximo: 45, lote: 10, precio: 9 },
+  francotirador: { inicial: 10, maximo: 40, lote: 10, precio: 10 },
+  ballesta: { inicial: 12, maximo: 40, lote: 10, precio: 6 },
+  lanzallamas: { inicial: 100, maximo: 400, lote: 100, precio: 12 },
 };
 
 // Mejoras por arma (nivel 0 = de serie). cargador: balas por cargador en cada nivel.
+// En el cuerpo a cuerpo, «recarga» es la velocidad del golpe (y no hay cargador).
 export const MEJORAS = {
   dano: { factor: [1, 1.2, 1.42, 1.7], precio: [30, 65, 120] },
   recarga: { factor: [1, 0.85, 0.72, 0.6], precio: [25, 55, 100] },
   cargador: {
     pistola: [17, 22, 27, 33], subfusil: [30, 40, 50, 60], escopeta: [5, 6, 7, 8],
+    francotirador: [5, 7, 9, 12], ballesta: [1, 2, 3, 4], lanzallamas: [100, 140, 180, 240],
     precio: [25, 55, 100],
   },
 };
 
 export const PRECIOS = {
-  subfusil: 80, escopeta: 120,    // la Glock se tiene desde el principio
+  subfusil: 80, escopeta: 120,    // la Glock y el bate se tienen desde el principio
+  machete: 60, francotirador: 160, ballesta: 90, lanzallamas: 200,
   curar: 6,                       // +25 de vida
   curarTodoPor25: 5,              // curar del todo: 5 monedas por cada 25 que falten
   botiquin: 15,

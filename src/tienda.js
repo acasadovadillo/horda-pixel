@@ -1,40 +1,59 @@
 // Tienda de la base: se abre entre rondas, dentro de la base. El juego queda parado mientras compras.
 // Pestañas: armas, munición, curación, mejoras y defensas. Todo se paga con las monedas de los zombis.
 import { S, texto, anchoTexto, dibujar } from "./sprites.js";
-import { ARMAS, JUGADOR, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
+import { ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, JUGADOR, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
 import { faltaMuro, repararMuro, reforzarMuro } from "./base.js";
 import { sonar } from "./audio.js";
 import { t } from "./idioma.js";
 
-const PESTANAS = ["armas", "municion", "curacion", "mejoras", "defensas"];
-const ARMAS_ORDEN = ["pistola", "subfusil", "escopeta"];
+const PESTANAS = ["armas", "municion", "explosivos", "curacion", "mejoras", "defensas"];
+const ARMAS_ORDEN = ARMAS_FUEGO;
+const EN_VENTA = ["machete", "subfusil", "escopeta", "francotirador", "ballesta", "lanzallamas"];
 
 // Iconos de iconos_tienda
-const IC = { municion: [0, 1, 2], curar: 3, curarTodo: 4, botiquin: 5, chaleco: 6, dano: 7, cargador: 8, recarga: 9, reparar: 10, reforzar: 11, alambre: 12 };
+const IC = {
+  municion: { pistola: 0, subfusil: 1, escopeta: 2, francotirador: 14, ballesta: 15, lanzallamas: 16 },
+  curar: 3, curarTodo: 4, botiquin: 5, chaleco: 6, dano: 7, cargador: 8, recarga: 9, reparar: 10, reforzar: 11, alambre: 12,
+  granada: 17, molotov: 18,
+};
+const UNIDAD = { escopeta: "cartuchos", ballesta: "virotes", lanzallamas: "gasolina" };
 
 // Cada artículo: icono, nombre, detalle, precio (null = no se puede ahora) y nota (TUYA, MÁX...).
 function articulos(juego) {
   const j = juego.jugador, b = juego.base;
   const p = juego.pestana;
   if (p === "armas") {
-    return ["subfusil", "escopeta"].map((n) => ({
+    return EN_VENTA.map((n) => ({
       arma: n, nombre: t(n), detalle: t("detalle_" + n),
       precio: j.armas[n] ? null : PRECIOS[n], nota: j.armas[n] ? t("tuya") : null,
       comprar: () => {
         j.armas[n] = true;
-        j.cargador[n] = ARMAS[n].cargador;
-        j.reserva[n] = MUNICION[n].inicial;
+        if (!ARMAS[n].cuerpo) {
+          j.cargador[n] = ARMAS[n].cargador;
+          j.reserva[n] = MUNICION[n].inicial;
+        }
         juego.cambiarArma(n);
       },
     }));
   }
   if (p === "municion") {
-    return ARMAS_ORDEN.map((n, i) => {
+    // Solo la de las armas que tienes
+    return ARMAS_ORDEN.filter((n) => j.armas[n]).map((n) => {
       const m = MUNICION[n], lleno = j.reserva[n] >= m.maximo;
       return {
-        icono: IC.municion[i], nombre: t(n), detalle: "+" + m.lote + " " + t(n === "escopeta" ? "cartuchos" : "balas") + ", " + j.reserva[n] + "/" + m.maximo,
-        precio: !j.armas[n] || lleno ? null : m.precio, nota: !j.armas[n] ? t("sinArma") : lleno ? t("lleno") : null,
+        icono: IC.municion[n], nombre: t(n), detalle: "+" + m.lote + " " + t(UNIDAD[n] || "balas") + ", " + j.reserva[n] + "/" + m.maximo,
+        precio: lleno ? null : m.precio, nota: lleno ? t("lleno") : null,
         comprar: () => { j.reserva[n] = Math.min(m.maximo, j.reserva[n] + m.lote); },
+      };
+    });
+  }
+  if (p === "explosivos") {
+    return ["granada", "molotov"].map((n) => {
+      const L = LANZABLES[n], lleno = j.lanzables[n] >= L.max;
+      return {
+        icono: IC[n], nombre: t(n), detalle: t("detalle_" + n) + ", " + j.lanzables[n] + "/" + L.max,
+        precio: lleno ? null : L.precio, nota: lleno ? t("lleno") : null,
+        comprar: () => { j.lanzables[n]++; },
       };
     });
   }
@@ -54,6 +73,22 @@ function articulos(juego) {
   if (p === "mejoras") {
     const n = juego.armaMejora && j.armas[juego.armaMejora] ? juego.armaMejora : j.arma;
     const m = j.mejoras[n];
+    if (ARMAS[n].cuerpo) {
+      // Cuerpo a cuerpo: daño y velocidad del golpe
+      const pct2 = (f) => Math.round(Math.abs(f - 1) * 100) + "%";
+      const linea2 = (tipo, nombre, detalle) => {
+        const nivel = m[tipo], max = nivel >= 3;
+        return {
+          icono: IC[tipo], nombre: t(nombre) + " " + "I".repeat(nivel + (max ? 0 : 1)), detalle: detalle(nivel, max),
+          precio: max ? null : MEJORAS[tipo].precio[nivel], nota: max ? t("maximo") : null,
+          comprar: () => { m[tipo]++; },
+        };
+      };
+      return [
+        linea2("dano", "mejora_dano", (k, max) => t("detalle_dano") + " " + (max ? pct2(MEJORAS.dano.factor[k]) : "+" + pct2(MEJORAS.dano.factor[k + 1]))),
+        linea2("recarga", "mejora_velocidad", (k, max) => t("detalle_velocidad") + " +" + pct2(1 / MEJORAS.recarga.factor[max ? k : k + 1])),
+      ];
+    }
     const linea = (tipo, valor) => {
       const nivel = m[tipo], max = nivel >= 3;
       return {
@@ -117,17 +152,17 @@ export function pantallaTienda(juego, g) {
   if (juego.pestana === "mejoras") {
     const j = juego.jugador, actual = juego.armaMejora && j.armas[juego.armaMejora] ? juego.armaMejora : j.arma;
     let x = 8;
-    for (const n of ARMAS_ORDEN) {
+    for (const n of [...CUERPO, ...ARMAS_ORDEN]) {
       if (!j.armas[n]) continue;
-      const sel = n === actual, w = 44;
+      const sel = n === actual, w = 42;
       g.fillStyle = "#0e0d12"; g.fillRect(x, y0, w, 22);
       g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(x + 1, y0 + 1, w - 2, 20);
-      const s = S[n];
+      const s = juego.iconoArma(n);
       dibujar(g, s, 0, x + Math.floor((w - s.w) / 2), y0 + 2);
       juego.boton(x, y0 - 2, w, 26, () => { juego.armaMejora = n; sonar("boton"); });
       x += w + 4;
     }
-    texto(g, t(actual), x + 4, y0 + 6, "#d1cec0");
+    if (x + 4 + anchoTexto(t(actual)) < W - 8) texto(g, t(actual), x + 4, y0 + 6, "#d1cec0");
     y0 += 28;
   }
 
@@ -139,7 +174,7 @@ export function pantallaTienda(juego, g) {
     g.fillStyle = "#0e0d12"; g.fillRect(x, y, cw, chh);
     g.fillStyle = "#26252e"; g.fillRect(x + 1, y + 1, cw - 2, chh - 2);
     if (a.arma) {
-      const s = S[a.arma];
+      const s = juego.iconoArma(a.arma);
       dibujar(g, s, 0, x + 4, y + Math.floor((chh - s.h) / 2));
     } else juego.icono(g, a.icono, x + 6, y + 10, 24);
     const tx = a.arma ? x + 44 : x + 36;

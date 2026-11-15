@@ -1,5 +1,5 @@
 // Partida: jugador, zombis, balas, botín, oleadas, cámara, luces, interfaz.
-import { PANTALLA, JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
+import { PANTALLA, JUGADOR, ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, FUEGO, ZOMBIS, OLEADAS, BOTIN, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
 import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, leerApuntado, RADIO_STICK } from "./entrada.js";
@@ -10,7 +10,10 @@ import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo,
 import { pantallaTienda } from "./tienda.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
-const ORDEN_ARMAS = ["pistola", "subfusil", "escopeta"];
+const ORDEN_ARMAS = ARMAS_FUEGO;               // armas de fuego, en el orden de la barra
+const CASILLAS = ["cuerpo", ...ARMAS_FUEGO];    // la primera casilla es el arma de cuerpo a cuerpo que llevas
+const TODAS = [...CUERPO, ...ARMAS_FUEGO];
+const G = 330;                                  // gravedad de lo que se lanza (px/s²)
 const PIES = { x: 20, y: 38 };          // punto de los pies por defecto en los lienzos de 40x40
 const HOMBRO = { x: 20, y: 13 };
 const PECHO = 19;                       // px sobre los pies: adonde se apunta y donde impactan las balas
@@ -61,17 +64,23 @@ export class Juego {
     this.base = crearBase(this.mapa);
     this.jugador = {
       x: s.x, y: s.y, vida: JUGADOR.vida, arma: "pistola",
-      // Solo la Glock al empezar; las otras se compran en la tienda de la base
-      armas: { pistola: true, subfusil: false, escopeta: false },
-      cargador: { pistola: ARMAS.pistola.cargador, subfusil: 0, escopeta: 0 },
-      reserva: { pistola: MUNICION.pistola.inicial, subfusil: 0, escopeta: 0 },
-      mejoras: Object.fromEntries(ORDEN_ARMAS.map((a) => [a, { dano: 0, cargador: 0, recarga: 0 }])),
-      botiquines: 0, chaleco: 0,
+      // La Glock y el bate al empezar; lo demás se compra en la tienda de la base
+      armas: Object.fromEntries(TODAS.map((n) => [n, n === "pistola" || n === "bate"])),
+      cuerpo: "bate",                    // el arma de la casilla de cuerpo a cuerpo
+      cargador: Object.fromEntries(ARMAS_FUEGO.map((n) => [n, n === "pistola" ? ARMAS.pistola.cargador : 0])),
+      reserva: Object.fromEntries(ARMAS_FUEGO.map((n) => [n, n === "pistola" ? MUNICION.pistola.inicial : 0])),
+      mejoras: Object.fromEntries(TODAS.map((a) => [a, { dano: 0, cargador: 0, recarga: 0 }])),
+      lanzables: { granada: 0, molotov: 0 },
+      botiquines: 0, chaleco: 0, golpeT: 0, golpeDur: 1, tLanzar: 0,
       recarga: 0, espera: 0, angulo: -Math.PI / 2, voltear: false, anim: 0, andando: false,
       golpe: 0, muerto: 0, sinBlanco: 0, tDisparo: 9,
     };
     this.zombis = []; this.balas = []; this.botin = []; this.flotantes = [];
     this.particulas = []; this.fogonazos = [];
+    this.llamas = [];            // llamas del lanzallamas
+    this.lanzados = [];          // granadas y molotov en el aire (o la granada en el suelo, a punto de estallar)
+    this.fuegos = [];            // charcos de fuego de los molotov
+    this.explosiones = [];
     this.cuerpoJugador = null;   // al morir, la cámara sigue al cuerpo
     this.ragdolls = [];          // cuerpos cayendo y trozos volando (después se quedan pintados en el suelo)
     this.blanco = null;
@@ -85,7 +94,9 @@ export class Juego {
   }
 
   tecla(c) {
-    if (c === "Digit1" || c === "Digit2" || c === "Digit3") this.cambiarArma(ORDEN_ARMAS[+c.slice(5) - 1]);
+    if (/^Digit[1-7]$/.test(c)) this.cambiarArma(CASILLAS[+c.slice(5) - 1]);
+    if (c === "KeyG") this.lanzar("granada");
+    if (c === "KeyF") this.lanzar("molotov");
     if (c === "KeyR") this.empezarRecarga();
     if (c === "KeyH") this.usarBotiquin();
     if (c === "KeyT" && this.puedeComprar()) this.abrirTienda();
@@ -105,6 +116,10 @@ export class Juego {
   // Estadísticas de un arma con sus mejoras compradas.
   arma(n) {
     const a = ARMAS[n], m = this.jugador.mejoras[n];
+    if (a.cuerpo) {          // cuerpo a cuerpo: daño y velocidad del golpe
+      const k = MEJORAS.recarga.factor[m.recarga];
+      return { ...a, dano: a.dano * MEJORAS.dano.factor[m.dano], cadencia: a.cadencia / k, golpe: a.golpe * k };
+    }
     return {
       ...a,
       dano: a.dano * MEJORAS.dano.factor[m.dano],
@@ -140,7 +155,15 @@ export class Juego {
   }
 
   // ¿Le quedan balas a esta arma (en el cargador o en la reserva)?
-  conBalas(n) { const j = this.jugador; return j.armas[n] && (j.cargador[n] > 0 || j.reserva[n] > 0); }
+  conBalas(n) {
+    const j = this.jugador;
+    if (ARMAS[n].cuerpo) return j.armas[n];
+    return j.armas[n] && (j.cargador[n] > 0 || j.reserva[n] > 0);
+  }
+
+  // Sprites de un arma: brazos que la sujetan e icono (con los de la pistola si aún no está dibujada).
+  brazos(n) { return S["brazos_" + n] || S.brazos_pistola; }
+  iconoArma(n) { return S[n] || S.pistola; }
 
   pausar() {
     this.verEstadisticas = false;
@@ -150,18 +173,28 @@ export class Juego {
 
   cambiarArma(a) {
     const j = this.jugador;
+    if (a === "cuerpo") {
+      // Ya con el cuerpo a cuerpo en la mano: cambia entre el bate y el machete (si tienes los dos)
+      if (CUERPO.includes(j.arma)) {
+        const otra = CUERPO.find((n) => n !== j.arma && j.armas[n]);
+        if (!otra) return;
+        j.cuerpo = otra; a = otra;
+      } else a = j.cuerpo;
+    }
     if (!a || a === j.arma || j.muerto) return;
     if (!j.armas[a]) {                       // aún no comprada
       this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: t("seCompra"), color: "#d1cec0" });
       return;
     }
-    j.arma = a; j.recarga = 0; j.espera = 0.15; j.tDisparo = 9;
+    j.arma = a; j.recarga = 0; j.espera = 0.15; j.tDisparo = 9; j.golpeT = 0;
+    if (CUERPO.includes(a)) j.cuerpo = a;
     cancelarRecarga();
     sonar("recargado");
   }
 
   empezarRecarga() {
     const j = this.jugador, a = this.arma(j.arma);
+    if (a.cuerpo) return;
     if (j.recarga > 0 || j.cargador[j.arma] >= a.cargador || j.muerto || j.reserva[j.arma] <= 0) return;
     if (a.porCartucho) {
       // Escopeta: se gira el arma y se meten los cartuchos de uno en uno por debajo.
@@ -188,6 +221,8 @@ export class Juego {
     this.disparar(dt);
     this.moverZombis(dt);
     this.moverBalas(dt);
+    this.moverLlamas(dt);
+    this.moverLanzados(dt);
     this.moverBotin(dt);
     this.moverEfectos(dt);
     this.oleadas(dt);
@@ -243,7 +278,7 @@ export class Juego {
 
   // Posición en el mundo del hombro (donde giran los brazos), la boca del cañón y la ventana de expulsión.
   geometriaArma() {
-    const j = this.jugador, cuerpo = S.jugador, br = S["brazos_" + j.arma];
+    const j = this.jugador, cuerpo = S.jugador, br = this.brazos(j.arma);
     const i = this.cuadroJugador();
     const pies = punto(cuerpo, "pies", i, PIES), h = punto(cuerpo, "hombro", i, HOMBRO);
     const izq = Math.cos(j.angulo) < 0;          // los brazos se dan la vuelta al apuntar a la izquierda
@@ -266,6 +301,8 @@ export class Juego {
     if (j.muerto) return;
     j.espera = Math.max(0, j.espera - dt);
     j.tDisparo += dt;
+    j.tLanzar = Math.max(0, j.tLanzar - dt);
+    if (a.cuerpo) return this.golpear(dt, a);
     // Automático: al zombi visible más cercano. Manual: hacia donde marca el joystick de la derecha.
     const manual = this.disparo === "manual";
     const apuntado = manual ? leerApuntado() : null;
@@ -306,12 +343,12 @@ export class Juego {
     if (!quiere || j.recarga > 0 || j.espera > 0) return;
     if (j.cargador[j.arma] <= 0) {
       if (j.reserva[j.arma] > 0) this.empezarRecarga();
-      else {                                  // sin balas: a otra arma que tenga, o «SIN BALAS»
+      else {                                  // sin balas: a otra arma que tenga, y si no, al cuerpo a cuerpo
         const otra = ORDEN_ARMAS.find((n) => n !== j.arma && this.conBalas(n));
         if (otra) this.cambiarArma(otra);
-        else if (!this.avisoSinBalas || this.t - this.avisoSinBalas > 1.5) {
-          this.avisoSinBalas = this.t;
+        else {
           this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: t("sinBalas"), color: "#ff5a5a" });
+          this.cambiarArma("cuerpo");
         }
       }
       return;
@@ -322,25 +359,247 @@ export class Juego {
     j.espera = 1 / a.cadencia;
     j.tDisparo = 0;
     const geo = this.geometriaArma();
+    if (a.llama) {
+      // Lanzallamas: una llama que avanza, crece, sube y se apaga; prende a los zombis que toca
+      const ang = j.angulo + (Math.random() - 0.5) * (a.dispersion * Math.PI / 180);
+      const v = a.velocidadBala * rnd(0.8, 1.15);
+      this.llamas.push({ x: geo.boca.x, y: geo.boca.y, vx: Math.cos(ang) * v + rnd(-6, 6), vy: Math.sin(ang) * v, t: 0,
+        vida: (a.alcance / a.velocidadBala) * rnd(0.85, 1.25), dano: a.dano, quema: a.quema, tocados: new Set() });
+      this.stats.disparos++;
+      this.sacudida = Math.max(this.sacudida, a.sacudida);
+      sonar("lanzallamas", 0.11);
+      if (j.cargador[j.arma] === 0 && j.reserva[j.arma] > 0) this.empezarRecarga();
+      return;
+    }
     for (let i = 0; i < a.perdigones; i++) {
       const ang = j.angulo + (Math.random() - 0.5) * (a.dispersion * Math.PI / 180);
       const v = a.velocidadBala * rnd(0.9, 1.1);
       this.balas.push({
         x: geo.boca.x, y: geo.boca.y, px: geo.hombro.x, py: geo.hombro.y, nueva: true,
         vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, vida: (a.alcance * 1.25) / v, arma: j.arma,
+        atraviesa: a.atraviesa || 1, tocados: null, flecha: !!a.flecha, alto: j.y - geo.boca.y,
       });
     }
     this.stats.disparos += a.perdigones;
-    this.fogonazos.push({ x: geo.boca.x, y: geo.boca.y, ang: j.angulo, t: 0 });
-    // Casquillo que sale volando hacia atrás
-    const lado = Math.cos(j.angulo) < 0 ? 1 : -1;
-    this.particulas.push({
-      x: geo.casquillo.x, y: j.y - rnd(0, 5), z: j.y - geo.casquillo.y, vx: lado * rnd(25, 55), vy: rnd(-12, 12), vz: rnd(50, 90),
-      color: a.perdigones > 1 ? "#a8322a" : "#d9b24a", vida: 3, casquillo: true,
-    });
+    if (!a.flecha) {
+      this.fogonazos.push({ x: geo.boca.x, y: geo.boca.y, ang: j.angulo, t: 0 });
+      // Casquillo que sale volando hacia atrás
+      const lado = Math.cos(j.angulo) < 0 ? 1 : -1;
+      this.particulas.push({
+        x: geo.casquillo.x, y: j.y - rnd(0, 5), z: j.y - geo.casquillo.y, vx: lado * rnd(25, 55), vy: rnd(-12, 12), vz: rnd(50, 90),
+        color: a.perdigones > 1 ? "#a8322a" : "#d9b24a", vida: 3, casquillo: true,
+      });
+    }
     this.sacudida = Math.max(this.sacudida, a.sacudida);
     sonar(a.sonido, a.cadencia > 5 ? 0.06 : 0);
     if (j.cargador[j.arma] === 0 && j.reserva[j.arma] > 0) this.empezarRecarga();
+  }
+
+
+  // ------------------------------------------------------------------ cuerpo a cuerpo
+  // Barrido con el bate o el machete: en automático, cuando un zombi está a su alcance; en manual,
+  // hacia donde marca el joystick. El golpe llega a mitad del barrido a todos los del arco.
+  golpear(dt, a) {
+    const j = this.jugador, manual = this.disparo === "manual";
+    const apuntado = manual ? leerApuntado() : null;
+    const z = manual ? null : this.zombiMasCercano(a.alcance + 12);
+    this.blanco = z;
+    if (j.golpeT > 0) {
+      const antes = j.golpeT;
+      j.golpeT = Math.max(0, j.golpeT - dt);
+      if (antes > j.golpeDur * 0.45 && j.golpeT <= j.golpeDur * 0.45) this.impactoCuerpo(a);
+      return;
+    }
+    const quiere = manual ? apuntado !== null : !!z;
+    if (quiere) { j.sinBlanco = 0; j.angulo = manual ? apuntado : Math.atan2(z.y - j.y, z.x - j.x); }
+    if (!quiere || j.espera > 0) return;
+    j.golpeT = j.golpeDur = a.golpe;
+    j.espera = 1 / a.cadencia;
+    this.stats.disparos++;
+    sonar("barrido");
+  }
+
+  impactoCuerpo(a) {
+    const j = this.jugador, medio = (a.arco / 2) * Math.PI / 180;
+    let alguno = false;
+    for (const z of this.zombis) {
+      if (z.muerto || z.aparece > 0.2) continue;
+      const dx = z.x - j.x, dy = z.y - j.y, d = Math.hypot(dx, dy) || 1;
+      if (d > a.alcance + z.def.radio) continue;
+      const dif = Math.atan2(Math.sin(Math.atan2(dy, dx) - j.angulo), Math.cos(Math.atan2(dy, dx) - j.angulo));
+      if (Math.abs(dif) > medio && d > 11) continue;
+      const critico = Math.random() < a.critico, dano = a.dano * (critico ? 2 : 1);
+      const ux = dx / d, uy = dy / d;
+      z.vida -= dano; z.golpe = 0.1; z.barra = 2;
+      z.x += ux * a.empuje; z.y += uy * a.empuje;
+      resolverChoques(this.mapa, z, z.def.radio);
+      chocarMuro(this.base, z, z.def.radio, false);
+      if (a.empuje > 10) { z.ataque = 0; z.espera = Math.max(z.espera, 0.6); }   // el bate los deja aturdidos
+      this.stats.impactos++;
+      this.stats.dano += Math.min(dano, z.vida + dano);
+      this.flotantes.push({ x: z.x + rnd(-4, 4), y: z.y - PECHO - 12, t: 0, txt: String(Math.round(dano)) + (critico ? "!" : ""), color: critico ? "#ffd84a" : "#ffffff" });
+      for (let i = 0; i < (critico ? 10 : 5); i++) this.gota(z.x, z.y, rnd(10, 26), ux * rnd(20, 80) + rnd(-20, 20), uy * rnd(10, 40) + rnd(-10, 10), rnd(15, 70));
+      if (!alguno && j.tDisparo > 0.05) { j.tDisparo = 0; }
+      alguno = true;
+      if (z.vida <= 0) this.matarZombi(z, { x: ux, y: uy }, a.empuje / 7 + (critico ? 1 : 0.4), critico);
+    }
+    if (alguno) {
+      this.stats.disparos += 0;   // el barrido ya contó como un disparo
+      sonar(a.sonido, 0.03);
+      this.sacudida = Math.max(this.sacudida, a.sacudida);
+      vibrar(15);
+    }
+  }
+
+  // ------------------------------------------------------------------ granadas y molotov
+  // Se lanzan al zombi visible que tenga más compañía alrededor (en manual, de los que hay hacia donde apuntas);
+  // si no hay ninguno, hacia delante.
+  lanzar(tipo) {
+    const j = this.jugador, L = LANZABLES[tipo];
+    if (this.estado !== "jugando" || j.muerto || j.lanzables[tipo] <= 0 || j.tLanzar > 0) return;
+    const manual = this.disparo === "manual";
+    const hacia = manual ? (leerApuntado() ?? j.angulo) : null;
+    let mejor = null, puntos = -1;
+    for (const z of this.zombis) {
+      if (z.muerto || z.aparece > 0.2 || !this.seVe(z)) continue;
+      const dx = z.x - j.x, dy = z.y - j.y, d = Math.hypot(dx, dy);
+      if (d < 28 || d > L.alcance) continue;
+      if (hacia !== null) {
+        const dif = Math.atan2(Math.sin(Math.atan2(dy, dx) - hacia), Math.cos(Math.atan2(dy, dx) - hacia));
+        if (Math.abs(dif) > 0.6) continue;
+      }
+      let n = 0;
+      for (const o of this.zombis) if (!o.muerto && (o.x - z.x) ** 2 + (o.y - z.y) ** 2 < 32 * 32) n++;
+      const p = n * 1000 - d;
+      if (p > puntos) { puntos = p; mejor = z; }
+    }
+    const ang = hacia ?? j.angulo;
+    const tx = mejor ? mejor.x : j.x + Math.cos(ang) * L.alcance * 0.7;
+    const ty = mejor ? mejor.y : j.y + Math.sin(ang) * L.alcance * 0.7;
+    const d = Math.hypot(tx - j.x, ty - j.y), T = Math.max(0.35, Math.min(0.85, d / 150)), z0 = 24;
+    this.lanzados.push({ tipo, x: j.x, y: j.y, z: z0, vx: (tx - j.x) / T, vy: (ty - j.y) / T, vz: (0.5 * G * T * T - z0) / T, t: 0, giro: 0 });
+    j.lanzables[tipo]--;
+    j.tLanzar = 0.45;
+    j.angulo = Math.atan2(ty - j.y, tx - j.x);
+    sonar("lanzar");
+  }
+
+  moverLanzados(dt) {
+    for (const o of this.lanzados) {
+      o.t += dt;
+      if (!o.quieto) {
+        o.vz -= G * dt; o.z += o.vz * dt;
+        o.x += o.vx * dt; o.y += o.vy * dt;
+        o.giro += dt * 15;
+        resolverChoques(this.mapa, o, 2);
+        if (o.z <= 0) {
+          o.z = 0;
+          if (o.tipo === "molotov") { this.romperMolotov(o.x, o.y); o.fuera = true; continue; }
+          if (o.vz < -60) { o.vz = -o.vz * 0.3; o.vx *= 0.45; o.vy *= 0.45; sonar("impacto", 0.05); }
+          else { o.quieto = true; o.vz = 0; }
+        }
+      }
+      if (o.tipo === "granada" && o.t >= LANZABLES.granada.mecha) { this.explotar(o.x, o.y); o.fuera = true; }
+    }
+    this.lanzados = this.lanzados.filter((o) => !o.fuera);
+    // Charcos de fuego: prenden a los zombis que los pisan
+    for (const f of this.fuegos) {
+      f.t += dt;
+      for (const z of this.zombis) {
+        if (z.muerto || z.aparece > 0) continue;
+        if ((z.x - f.x) ** 2 + ((z.y - f.y) / 0.6) ** 2 < f.r * f.r) {
+          z.arde = Math.max(z.arde || 0, 1.5);
+          z.vida -= FUEGO.danoSuelo * dt;
+          z.barra = 2;
+          if (z.vida <= 0) this.matarZombi(z, { x: 0, y: -1 }, 0.5);
+        }
+      }
+      if (f.t >= f.dur) {
+        f.fuera = true;
+        this.marcaQuemada(f.x, f.y, f.r);
+      }
+    }
+    this.fuegos = this.fuegos.filter((f) => !f.fuera);
+    for (const e of this.explosiones) e.t += dt;
+    this.explosiones = this.explosiones.filter((e) => e.t < 0.6);
+  }
+
+  explotar(x, y) {
+    const L = LANZABLES.granada;
+    this.explosiones.push({ x, y, t: 0 });
+    this.sacudida = Math.max(this.sacudida, 7);
+    sonar("explosion");
+    vibrar(70);
+    for (const z of this.zombis) {
+      if (z.muerto || z.aparece > 0.3) continue;
+      const dx = z.x - x, dy = z.y - y, d = Math.hypot(dx, dy) || 1;
+      if (d > L.radio + z.def.radio) continue;
+      const k = 1 - 0.55 * Math.min(1, d / L.radio), dano = L.dano * k;
+      z.vida -= dano; z.golpe = 0.1; z.barra = 2;
+      this.stats.dano += Math.min(dano, z.vida + dano);
+      if (z.vida <= 0) { this.stats.impactos++; this.matarZombi(z, { x: dx, y: dy }, 2.4 + k, Math.random() < 0.35); }
+      else { z.x += (dx / d) * 18 * k; z.y += (dy / d) * 18 * k; z.ataque = 0; z.espera = Math.max(z.espera, 0.8); resolverChoques(this.mapa, z, z.def.radio); }
+    }
+    // Esquirlas, tierra y humo
+    for (let i = 0; i < 26; i++) {
+      const a = rnd(0, Math.PI * 2), v = rnd(40, 160);
+      this.particulas.push({ x: x + rnd(-4, 4), y: y + rnd(-3, 3), z: rnd(2, 10), vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, vz: rnd(40, 170),
+        color: ["#3a2c23", "#594430", "#26252e", "#ffc93a"][i % 4], vida: 2.5 });
+    }
+    this.marcaQuemada(x, y, 16);
+  }
+
+  romperMolotov(x, y) {
+    const L = LANZABLES.molotov;
+    sonar("cristal");
+    sonar("prender");
+    // Llamas repartidas por el charco (fijas: cada una con su momento de la animación)
+    const llamas = [];
+    for (let i = 0; i < 9; i++) {
+      const a = rnd(0, Math.PI * 2), r = Math.sqrt(Math.random()) * L.radio * 0.85;
+      llamas.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r * 0.6, t0: rnd(0, 1), tam: r < L.radio * 0.4 ? 1 : 0 });
+    }
+    this.fuegos.push({ x, y, r: L.radio, t: 0, dur: L.duracion, llamas });
+    for (let i = 0; i < 10; i++) {
+      const a = rnd(0, Math.PI * 2), v = rnd(30, 90);
+      this.particulas.push({ x, y, z: 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, vz: rnd(30, 90), color: "#b5d0db", vida: 1 });
+    }
+  }
+
+  // Suelo chamuscado donde estalla una granada o se apaga un molotov.
+  marcaQuemada(x, y, r) {
+    const g = this.mapa.sueloCtx;
+    g.save();
+    g.globalAlpha = 0.32;
+    g.fillStyle = "#0e0d12";
+    for (let i = 0; i < 18; i++) {
+      const a = rnd(0, Math.PI * 2), d = Math.sqrt(Math.random()) * r;
+      const w = rndInt(2, 5);
+      g.fillRect(Math.round(x + Math.cos(a) * d - w / 2), Math.round(y + Math.sin(a) * d * 0.6), w, rndInt(1, 3));
+    }
+    g.restore();
+  }
+
+  // Llamas del lanzallamas: frenan, suben un poco y crecen; cada una prende a cada zombi una vez.
+  moverLlamas(dt) {
+    for (const f of this.llamas) {
+      f.t += dt;
+      f.x += f.vx * dt; f.y += f.vy * dt;
+      f.vx *= 1 - 1.6 * dt; f.vy = f.vy * (1 - 1.6 * dt) - 14 * dt;
+      const r = 5 + 9 * (f.t / f.vida);
+      for (const z of this.zombis) {
+        if (z.muerto || z.aparece > 0.2 || f.tocados.has(z)) continue;
+        if ((z.x - f.x) ** 2 + (z.y - PECHO - f.y) ** 2 < r * r) {
+          f.tocados.add(z);
+          z.vida -= f.dano; z.barra = 2;
+          z.arde = Math.max(z.arde || 0, f.quema);
+          this.stats.impactos += 0.1;      // muchas llamas por zombi: cuentan poco para la puntería
+          this.stats.dano += f.dano;
+          if (z.vida <= 0) this.matarZombi(z, { x: f.vx, y: f.vy }, 0.5);
+        }
+      }
+    }
+    this.llamas = this.llamas.filter((f) => f.t < f.vida);
   }
 
   // ------------------------------------------------------------------ zombis
@@ -380,6 +639,14 @@ export class Juego {
       z.barra = Math.max(0, z.barra - dt);
       if (z.muerto) continue;            // el cuerpo ya es un ragdoll
       z.anim += dt;
+      if (z.arde > 0) {                  // ardiendo: pierde vida y suelta chispas
+        z.arde -= dt;
+        z.vida -= FUEGO.dano * dt;
+        z.barra = 2;
+        this.stats.dano += FUEGO.dano * dt;
+        if (Math.random() < dt * 10) this.particulas.push({ x: z.x + rnd(-5, 5), y: z.y, z: rnd(14, 30), vx: rnd(-8, 8), vy: 0, vz: rnd(20, 50), color: Math.random() < 0.5 ? "#ffc93a" : "#f08a1c", vida: 0.5, chispa: true });
+        if (z.vida <= 0) { this.matarZombi(z, { x: 0, y: -1 }, 0.5); continue; }
+      }
       z.gruñe -= dt;
       if (z.aparece > 0) { z.aparece -= dt; continue; }
       if (z.gruñe <= 0) {
@@ -513,7 +780,7 @@ export class Juego {
   // El jugador se desploma con los brazos y el arma; el golpe viene del zombi que lo mata.
   ragdollJugador(desde) {
     const j = this.jugador, spr = S.jugador, i = this.cuadroJugador();
-    const br = S["brazos_" + j.arma], geo = this.geometriaArma(), fb = br.frames[primero(br, "apuntar")];
+    const br = this.brazos(j.arma), geo = this.geometriaArma(), fb = br.frames[primero(br, "apuntar")];
     // Los brazos con el arma, tal como se veían (volteados si apuntaba a la izquierda)
     const c = document.createElement("canvas"); c.width = fb.w; c.height = fb.h;
     const gc = c.getContext("2d");
@@ -556,19 +823,33 @@ export class Juego {
       else { b.px = b.x; b.py = b.y; }
       b.x += b.vx * dt; b.y += b.vy * dt;
       b.vida -= dt;
-      if (b.vida <= 0) continue;
+      if (b.vida <= 0) { if (b.flecha) this.soltarFlecha(b.x, b.y + b.alto, b.vx); continue; }
       let mejor = null, mt = 2, mq = null;
       for (const z of this.zombis) {
-        if (z.muerto || z.aparece > 0.2) continue;
+        if (z.muerto || z.aparece > 0.2 || b.tocados?.has(z)) continue;
         const cx = z.x, cy = z.y - PECHO;
         const sx = b.x - b.px, sy = b.y - b.py, l2 = sx * sx + sy * sy || 1;
         const t = Math.max(0, Math.min(1, ((cx - b.px) * sx + (cy - b.py) * sy) / l2));
         const qx = b.px + sx * t, qy = b.py + sy * t;
         if ((qx - cx) ** 2 + (qy - cy) ** 2 < RADIO_CUERPO * RADIO_CUERPO && t < mt) { mejor = z; mt = t; mq = { x: qx, y: qy }; }
       }
-      if (mejor) { this.impacto(mejor, b, mq.x, mq.y); b.vida = 0; }
+      if (mejor) {
+        this.impacto(mejor, b, mq.x, mq.y);
+        (b.tocados ??= new Set()).add(mejor);
+        if (--b.atraviesa <= 0) {
+          b.vida = 0;
+          if (b.flecha) this.soltarFlecha(mejor.x + rnd(-6, 6), mejor.y + rnd(-3, 4), b.vx);
+        }
+      }
     }
     this.balas = this.balas.filter((b) => b.vida > 0);
+  }
+
+  // El virote de la ballesta se queda en el suelo; pasando por encima lo recoges.
+  soltarFlecha(x, y, vx) {
+    this.botin.push({ tipo: "flecha", x, y, z: 0, vz: 0, vx: 0, vy: 0, t: 0, anim: 0, voltear: vx < 0 });
+    const flechas = this.botin.filter((o) => o.tipo === "flecha");
+    if (flechas.length > 40) flechas[0].recogido = true;
   }
 
   impacto(z, b, x, y) {
@@ -629,6 +910,7 @@ export class Juego {
       if (j.muerto) continue;
       // Con la vida llena el botiquín se queda en el suelo: ni se atrae ni se recoge.
       if (o.tipo === "botiquin" && j.vida >= JUGADOR.vida) continue;
+      if (o.tipo === "flecha" && (!j.armas.ballesta || j.reserva.ballesta >= MUNICION.ballesta.maximo)) continue;
       const dx = j.x - o.x, dy = j.y - 8 - o.y, d = Math.hypot(dx, dy) || 1;
       const iman = o.iman ? 1e6 : o.tipo === "moneda" ? JUGADOR.recogerMonedas : 15;
       if (o.iman && o.t > 0.35) {                    // al acabar la ronda vuelan hasta ti
@@ -640,6 +922,7 @@ export class Juego {
       }
       if (d < 9 && o.t > 0.35) {
         if (o.tipo === "moneda") { this.stats.monedas++; this.monedas++; sonar("moneda", 0.03); }
+        else if (o.tipo === "flecha") { j.reserva.ballesta++; sonar("recargado", 0.05); }
         else if (o.tipo === "botiquin") {
           const antes = j.vida;
           j.vida = Math.min(JUGADOR.vida, j.vida + BOTIN.curaBotiquin);
@@ -650,7 +933,7 @@ export class Juego {
       }
     }
     // Las monedas no caducan (se recogen al acabar la ronda); los botiquines sí
-    this.botin = this.botin.filter((o) => !o.recogido && (o.tipo === "moneda" || o.t < BOTIN.duracionEnSuelo));
+    this.botin = this.botin.filter((o) => !o.recogido && (o.tipo === "moneda" || o.tipo === "flecha" || o.t < BOTIN.duracionEnSuelo));
   }
 
   moverEfectos(dt) {
@@ -728,7 +1011,7 @@ export class Juego {
       o.esperando = true;
       o.descanso = 0;
       o.superada = 2.5;
-      for (const b of this.botin) if (b.tipo === "moneda") b.iman = true;
+      for (const b of this.botin) if (b.tipo === "moneda" || (b.tipo === "flecha" && this.jugador.armas.ballesta)) b.iman = true;
     }
   }
 
@@ -784,6 +1067,7 @@ export class Juego {
       else if (o.tipo === "farola" || o.tipo === "cono") sombra(o.x + 1, o.y, 5, 2);
     }
     for (const o of this.botin) if (this.enPantalla(o.x, o.y)) sombra(o.x, o.y, 4, 1.5);
+    for (const o of this.lanzados) sombra(o.x, o.y, 3, 1.2);
 
     // Todo lo que está de pie, ordenado por la y de los pies
     const cosas = [];
@@ -792,6 +1076,8 @@ export class Juego {
     if (this.enPantalla(this.base.tienda.x, this.base.tienda.y, 60)) cosas.push({ y: this.base.tienda.y, f: () => dibujarTienda(g, this.base, this.t) });
     for (const z of this.zombis) if (!z.muerto && this.enPantalla(z.x, z.y)) cosas.push({ y: z.y, f: () => this.dibujarZombi(g, z) });
     for (const o of this.botin) cosas.push({ y: o.y - 0.5, f: () => this.dibujarBotin(g, o) });
+    for (const o of this.lanzados) cosas.push({ y: o.y, f: () => this.dibujarLanzado(g, o) });
+    for (const f of this.fuegos) cosas.push({ y: f.y - f.r * 0.6, f: () => this.dibujarFuego(g, f) });
     if (!j.ragdoll) cosas.push({ y: j.y, f: () => this.dibujarJugador(g) });
     for (const r of this.ragdolls) if (this.enPantalla(r.pts.P.x, r.y, 60)) cosas.push({ y: r.y, f: () => dibujarRagdoll(g, r) });
     cosas.sort((a, b) => a.y - b.y);
@@ -800,7 +1086,17 @@ export class Juego {
     // Balas (trazas), fogonazos, partículas
     g.lineWidth = 1;
     for (const b of this.balas) {
-      const v = Math.hypot(b.vx, b.vy), l = 7;
+      if (b.flecha) {
+        const s = S.proyectiles;
+        if (s) {
+          const f = s.frames[2];
+          g.save(); g.translate(Math.round(b.x) + 0.5, Math.round(b.y) + 0.5); g.rotate(Math.atan2(b.vy, b.vx));
+          g.drawImage(s.img, f.x, f.y, f.w, f.h, -f.w + 1.5, -f.h / 2 - 0.5, f.w, f.h);
+          g.restore();
+          continue;
+        }
+      }
+      const v = Math.hypot(b.vx, b.vy), l = b.arma === "francotirador" ? 16 : 7;
       g.strokeStyle = "#fff1a8";
       g.beginPath();
       g.moveTo(Math.round(b.x) + 0.5, Math.round(b.y) + 0.5);
@@ -829,6 +1125,23 @@ export class Juego {
       g.fillRect(Math.round(p.x), Math.round(p.y - p.z), p.casquillo ? 2 : (p.tam || 1), 1);
     }
     g.globalAlpha = 1;
+    // Llamas del lanzallamas: de blanco amarillento a rojo y a humo según se apagan
+    for (const f of this.llamas) {
+      const k = f.t / f.vida, r = Math.round(1 + 4 * k);
+      const col = k < 0.18 ? "#fff1a8" : k < 0.42 ? "#ffc93a" : k < 0.66 ? "#f08a1c" : k < 0.86 ? "#c2410c" : "rgba(65,68,76,0.6)";
+      const x = Math.round(f.x), y = Math.round(f.y);
+      g.fillStyle = col;
+      g.fillRect(x - r, y - r + 1, 2 * r + 1, 2 * r - 1);
+      g.fillRect(x - r + 1, y - r, 2 * r - 1, 2 * r + 1);
+    }
+    // Explosiones
+    const ex = S.explosion;
+    for (const e of this.explosiones) {
+      if (!ex) { g.fillStyle = `rgba(255,201,58,${1 - e.t / 0.6})`; g.beginPath(); g.arc(e.x, e.y - 10, 30 * (0.4 + e.t), 0, 7); g.fill(); continue; }
+      if (e.t >= duracion(ex, "estallar")) continue;
+      const c = punto(ex, "centro", 0, { x: 24, y: 32 });
+      dibujar(g, ex, fotograma(ex, "estallar", e.t, false), Math.round(e.x) - c.x, Math.round(e.y) - c.y);
+    }
     g.restore();
 
     // Oscuridad del atardecer: las farolas, el fuego y los disparos iluminan
@@ -896,6 +1209,12 @@ export class Juego {
     const j = this.jugador;
     foco(j.x, j.y - 16, 76, 0.5);
     for (const f of this.fogonazos) foco(f.x, f.y, 64, 1, "255,200,110");
+    // El fuego también ilumina
+    for (const f of this.fuegos) foco(f.x, f.y - 6, (f.r + 34) * (1 + 0.08 * Math.sin(this.t * 13 + f.x)) * Math.min(1, (f.dur - f.t) / 1.2 + 0.3), 1, "255,150,60");
+    for (const z of this.zombis) if (z.arde > 0 && !z.muerto) foco(z.x, z.y - 14, 42, 0.9, "255,150,60");
+    this.llamas.forEach((f, i) => { if (i % 3 === 0) foco(f.x, f.y, 34, 0.8, "255,170,70"); });
+    for (const o of this.lanzados) if (o.tipo === "molotov") foco(o.x, o.y - o.z, 22, 0.8, "255,150,60");
+    for (const e of this.explosiones) foco(e.x, e.y - 10, 150 * (1 - e.t / 0.6), 1, "255,190,90");
     g.drawImage(this.capaLuz, 0, 0);
     // Tinte cálido de las luces
     g.globalCompositeOperation = "lighter";
@@ -927,18 +1246,50 @@ export class Juego {
 
   // Brazos con el arma, girados alrededor del hombro hacia donde apunta
   dibujarBrazos(g, destello) {
-    const j = this.jugador, a = this.arma(j.arma), br = S["brazos_" + j.arma];
+    const j = this.jugador, a = this.arma(j.arma), br = this.brazos(j.arma);
     const geo = this.geometriaArma();
-    let fi = primero(br, "apuntar");
-    if (j.recarga > 0) fi = fotogramaPorAvance(br, "recargar", 1 - j.recarga / (j.recargaPaso || a.recarga));
+    let fi = primero(br, "apuntar"), ang = j.angulo;
+    if (a.cuerpo) ang += this.giroGolpe() * (geo.izq ? -1 : 1);
+    else if (j.recarga > 0) fi = fotogramaPorAvance(br, "recargar", 1 - j.recarga / (j.recargaPaso || a.recarga));
     else if (j.tDisparo < duracion(br, "disparar")) fi = fotograma(br, "disparar", j.tDisparo, false);
+    if (!br[destello]) destello = "img";
     const f = br.frames[fi];
+    if (a.cuerpo) this.dibujarEstela(g, geo, br);
     g.save();
     g.translate(geo.hombro.x + 0.5, geo.hombro.y + 0.5);
-    g.rotate(j.angulo);
+    g.rotate(ang);
     if (geo.izq) g.scale(1, -1);
     g.drawImage(br[destello], f.x, f.y, f.w, f.h, -geo.hb.x - 0.5, -geo.hb.y - 0.5, f.w, f.h);
     g.restore();
+  }
+
+  // Giro de los brazos con el bate o el machete respecto a donde mira (radianes): en reposo, el arma
+  // levantada; al golpear, coge impulso hacia atrás, barre rápido y vuelve despacio.
+  giroGolpe() {
+    const j = this.jugador, reposo = -1.0;
+    if (j.golpeT <= 0) return reposo;
+    const p = 1 - j.golpeT / j.golpeDur;
+    if (p < 0.2) return reposo - 0.9 * (p / 0.2);
+    if (p < 0.55) { const k = (p - 0.2) / 0.35; return -1.9 + 3.0 * (1 - (1 - k) * (1 - k)); }
+    return 1.1 - 2.1 * ((p - 0.55) / 0.45);
+  }
+
+  // Estela del barrido: un arco de píxeles claros por donde ha pasado la punta.
+  dibujarEstela(g, geo, br) {
+    const j = this.jugador;
+    if (j.golpeT <= 0) return;
+    const p = 1 - j.golpeT / j.golpeDur;
+    if (p < 0.22 || p > 0.75) return;
+    const lado = geo.izq ? -1 : 1, punta = punto(br, "boca", 0, { x: 34, y: 9 });
+    const r = punta.x - geo.hb.x, a1 = j.angulo + this.giroGolpe() * lado, a0 = j.angulo - 1.9 * lado;
+    const pasos = 18, alfa = p < 0.55 ? 0.55 : 0.55 * (1 - (p - 0.55) / 0.2);
+    for (let k = 0; k <= pasos; k++) {
+      const a = a0 + (a1 - a0) * (k / pasos);
+      g.fillStyle = `rgba(255,255,255,${alfa * (k / pasos)})`;
+      g.fillRect(Math.round(geo.hombro.x + Math.cos(a) * r), Math.round(geo.hombro.y + Math.sin(a) * r), 1, 1);
+      g.fillStyle = `rgba(255,255,255,${alfa * 0.5 * (k / pasos)})`;
+      g.fillRect(Math.round(geo.hombro.x + Math.cos(a) * (r - 3)), Math.round(geo.hombro.y + Math.sin(a) * (r - 3)), 1, 1);
+    }
   }
 
   // Fotograma que toca ahora a un zombi vivo (también lo usa el ragdoll al morir).
@@ -968,6 +1319,10 @@ export class Juego {
     const v = spr.variantes[z.variante] || spr.variantes[0];
     dibujarAnclado(g, spr, i, z.x, z.y, pies, z.voltear, z.golpe > 0 ? spr.blanca : v.img);
     z.ojos = { i, pies };          // para pintar los ojos brillando encima de la oscuridad
+    if (z.arde > 0) {              // en llamas
+      this.dibujarLlama(g, z.x - 2, z.y - 8, z.anim * 1.3);
+      this.dibujarLlama(g, z.x + 3, z.y - 15, z.anim * 1.3 + 0.37);
+    }
   }
 
   // Ojos amarillos de los zombis vivos, por encima de la capa de oscuridad (brillan en el atardecer).
@@ -989,6 +1344,32 @@ export class Juego {
     g.globalCompositeOperation = "source-over";
   }
 
+  // Una llama del sprite «fuego» con la base en (x, y).
+  dibujarLlama(g, x, y, t) {
+    const s = S.fuego;
+    if (!s) { g.fillStyle = "#f08a1c"; g.fillRect(Math.round(x) - 2, Math.round(y) - 6, 4, 6); return; }
+    const b = punto(s, "base", 0, { x: 7, y: 17 });
+    dibujar(g, s, fotograma(s, "arder", t), Math.round(x) - b.x, Math.round(y) - b.y);
+  }
+
+  dibujarLanzado(g, o) {
+    const s = S.proyectiles, i = o.tipo === "granada" ? 0 : 1;
+    if (!s) { g.fillStyle = "#4a6a34"; g.fillRect(Math.round(o.x) - 2, Math.round(o.y - o.z) - 4, 4, 4); return; }
+    const f = s.frames[i];
+    g.save();
+    g.translate(Math.round(o.x) + 0.5, Math.round(o.y - o.z) - f.h / 2 + 0.5);
+    if (!o.quieto) g.rotate(Math.round(o.giro / (Math.PI / 4)) * (Math.PI / 4));    // gira a saltos de 45°
+    g.drawImage(s.img, f.x, f.y, f.w, f.h, -f.w / 2 - 0.5, -f.h / 2 - 0.5, f.w, f.h);
+    g.restore();
+    // La granada en el suelo parpadea en rojo antes de estallar
+    if (o.tipo === "granada" && o.quieto && Math.floor(o.t * 10) % 2) { g.fillStyle = "#ff4a3a"; g.fillRect(Math.round(o.x), Math.round(o.y) - 5, 1, 1); }
+  }
+
+  dibujarFuego(g, f) {
+    const queda = f.dur - f.t, n = queda < 1.5 ? Math.ceil(f.llamas.length * queda / 1.5) : f.llamas.length;
+    for (let i = 0; i < n; i++) { const l = f.llamas[i]; this.dibujarLlama(g, l.x, l.y, this.t + l.t0); }
+  }
+
   dibujarObjeto(g, o) {
     const spr = S[o.tipo];
     const i = o.tipo === "hoguera" ? fotograma(spr, "arder", this.t + o.t0) : o.f;
@@ -996,6 +1377,12 @@ export class Juego {
   }
 
   dibujarBotin(g, o) {
+    if (o.tipo === "flecha") {           // virote clavado en el suelo
+      const s = S.proyectiles;
+      if (s) dibujar(g, s, 3, Math.round(o.x) - 6, Math.round(o.y - o.z) - 10, o.voltear);
+      else { g.fillStyle = "#7b5631"; g.fillRect(Math.round(o.x), Math.round(o.y) - 6, 1, 6); }
+      return;
+    }
     const spr = S[o.tipo];
     if (o.tipo !== "moneda" && o.t > BOTIN.duracionEnSuelo - 3 && Math.floor(o.t * 8) % 2) return;   // parpadea antes de irse
     const i = o.tipo === "moneda" ? fotograma(spr, "girar", o.anim) : 0;
@@ -1079,23 +1466,43 @@ export class Juego {
 
     // Armas (abajo a la derecha; en disparo manual, abajo en el centro porque ahí va el joystick de apuntar).
     // Las que no has comprado salen con candado.
+    // La primera casilla es la del cuerpo a cuerpo (bate o machete).
     const manual = this.disparo === "manual";
-    const slotW = 40, slotH = 24, gap = 3, totalW = (slotW + gap) * ORDEN_ARMAS.length - gap;
+    const slotW = 38, slotH = 24, gap = 3, totalW = (slotW + gap) * CASILLAS.length - gap;
     const x0 = manual ? Math.round(W / 2 - totalW / 2) : W - totalW - 5, y0 = H - slotH - 8;
     const xDer = x0 + totalW;                         // borde derecho de las armas (para la munición)
-    ORDEN_ARMAS.forEach((nombre, k) => {
+    CASILLAS.forEach((casilla, k) => {
+      const nombre = casilla === "cuerpo" ? j.cuerpo : casilla;
       const x = x0 + k * (slotW + gap), sel = nombre === j.arma;
       g.fillStyle = "#0e0d12"; g.fillRect(x, y0, slotW, slotH);
       g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(x + 1, y0 + 1, slotW - 2, slotH - 2);
       if (sel) { g.fillStyle = "#f2c84a"; g.fillRect(x + 1, y0 + 1, slotW - 2, 2); }
-      const spr = S[nombre], tiene = j.armas[nombre];
+      const spr = this.iconoArma(nombre), tiene = j.armas[nombre];
       g.globalAlpha = sel ? 1 : tiene ? 0.7 : 0.25;
       dibujar(g, spr, 0, x + Math.floor((slotW - spr.w) / 2), y0 + 1 + Math.floor((slotH - spr.h) / 2));
       g.globalAlpha = 1;
       if (!tiene) this.icono(g, 13, x + slotW / 2 - 8, y0 + 4, 16);
       else if (!this.conBalas(nombre)) texto(g, "0", x + slotW - 3, y0 + slotH - 11, "#ff5a5a", "der");
-      this.boton(x - 1, y0 - 6, slotW + 2, slotH + 14, () => this.cambiarArma(nombre));
+      // Con el bate y el machete, un puntito: tocando otra vez se cambia de uno a otro
+      if (casilla === "cuerpo" && j.armas.bate && j.armas.machete) { g.fillStyle = "#f2c84a"; g.fillRect(x + slotW - 5, y0 + slotH - 5, 2, 2); }
+      this.boton(x - 1, y0 - 6, slotW + 2, slotH + 14, () => this.cambiarArma(casilla));
     });
+    // Granadas y molotov: un botón por cada uno que lleves, encima de la munición a la derecha
+    if (this.estado === "jugando" && !j.muerto) {
+      let yL = H - 112;
+      for (const tipo of ["molotov", "granada"]) {
+        const n = j.lanzables[tipo];
+        if (n <= 0) continue;
+        const bw2 = 34, bh = 28, bx2 = W - bw2 - 5;
+        g.fillStyle = "#0e0d12"; g.fillRect(bx2, yL, bw2, bh);
+        g.fillStyle = j.tLanzar > 0 ? "#26252e" : "#4a3a2a"; g.fillRect(bx2 + 1, yL + 1, bw2 - 2, bh - 2);
+        g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(bx2 + 1, yL + 1, bw2 - 2, 2);
+        this.icono(g, tipo === "granada" ? 17 : 18, bx2 + 1, yL + 2, 24);
+        texto(g, String(n), bx2 + bw2 - 3, yL + bh - 11, "#ffffff", "der");
+        this.boton(bx2 - 4, yL - 3, bw2 + 8, bh + 6, () => this.lanzar(tipo));
+        yL -= bh + 6;
+      }
+    }
     // Munición y recarga encima de las armas
     const a = this.arma(j.arma);
     const yMun = y0 - 14;
@@ -1110,6 +1517,8 @@ export class Juego {
         for (let k = 1; k < a.cargador; k++) g.fillRect(x + Math.round(w * k / a.cargador), yMun + 2, 1, 6);
       }
       texto(g, t("recargando") + (a.porCartucho ? " " + j.cargador[j.arma] + "/" + a.cargador : ""), x - 5, yMun, "#ffffff", "der");
+    } else if (a.cuerpo) {
+      texto(g, t(j.arma), xDer, yMun, "#ffffff", "der");
     } else {
       const quedan = j.cargador[j.arma];
       const res = j.reserva[j.arma];
@@ -1225,7 +1634,7 @@ export class Juego {
   // Icono de la tienda (fotograma i de iconos_tienda) en (x, y), escalado a «tam» px.
   icono(g, i, x, y, tam = 24) {
     const s = S.iconos_tienda;
-    if (s) {
+    if (s && s.frames[i]) {
       const f = s.frames[i];
       g.drawImage(s.img, f.x, f.y, f.w, f.h, Math.round(x), Math.round(y), tam, tam);
       return;

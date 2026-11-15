@@ -27,6 +27,12 @@ Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en 
 - **Cámara (zoom):** cerca, media (por defecto) o lejos, desde la pausa; se ve unos 100, 130 o 180 píxeles de alto del mundo (una persona mide 35). La interfaz no cambia de tamaño. Se guarda con la clave `horda-pixel:camara`; `?vista=N` en la dirección prueba otro valor. Solo se dispara a zombis que se ven en pantalla.
 - **Idioma:** español o inglés (EE. UU.), desde la pantalla de inicio (banderas de España y EE. UU. arriba a la derecha) o desde la pausa. Se guarda en el navegador con la clave `horda-pixel:idioma`; la primera vez se usa el idioma del sistema. Los textos están en `src/idioma.js`.
 
+- **Armas nuevas** (2026-11-15, números en `ARMAS`, `LANZABLES` y `FUEGO` de `src/config.js`):
+  - **Cuerpo a cuerpo:** la primera casilla de la barra. Empiezas con el bate (aturde y empuja); el machete se compra (más rápido, crítico que decapita). Si tienes los dos, tocar otra vez la casilla cambia de uno a otro. Golpean en arco a todos los zombis a su alcance; en automático, cuando uno está cerca. Si te quedas sin balas en todas las armas, pasas solo al cuerpo a cuerpo. Mejoras: daño y velocidad.
+  - **Fusil de cerrojo** (atraviesa 3 zombis), **ballesta** (virotes que atraviesan 2 y se quedan en el suelo para recogerlos; al acabar la ronda vuelan hacia ti) y **lanzallamas** (llamas que prenden fuego; el depósito es la munición).
+  - **Granadas y molotov:** pestaña EXPLOSIVOS, hasta 4 de cada. Botones a la derecha (teclas G y F). Se lanzan al zombi visible con más compañía (en manual, hacia donde apuntas). La granada estalla a los 1,25 s; el molotov deja un charco de fuego 6 s. No hacen daño al jugador.
+  - Zombis ardiendo: pierden 11 de vida por segundo.
+
 ## Números (src/config.js)
 Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 

@@ -34,7 +34,12 @@ export function teñida(img, color) {
 }
 
 // Sprites que pueden no estar todavía (el juego dibuja algo sencillo en su lugar).
-const OPCIONALES = ["muro", "porton", "alambre", "tienda", "iconos_tienda"];
+const OPCIONALES = ["muro", "porton", "alambre", "tienda", "iconos_tienda",
+  "bate", "machete", "francotirador", "ballesta", "lanzallamas",
+  "brazos_bate", "brazos_machete", "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas",
+  "proyectiles", "fuego", "explosion"];
+const BRAZOS = ["brazos_pistola", "brazos_subfusil", "brazos_escopeta", "brazos_bate", "brazos_machete",
+  "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas"];
 
 export async function cargarSprites(base = "assets/") {
   await Promise.all([...NOMBRES, ...OPCIONALES].map(async (n) => {
@@ -46,11 +51,11 @@ export async function cargarSprites(base = "assets/") {
   }));
   await prepararVariantes(base);
   for (const n of ["palotes", "cifras_sangre"]) S[n].blanca = teñida(S[n].img, "#f2ece4");
-  for (const n of ["jugador", "zombi", "zombi_b", "zombi_c", "corredor", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
-    S[n].blanca = teñida(S[n].img, "#ffffff");
+  for (const n of ["jugador", "zombi", "zombi_b", "zombi_c", "corredor", ...BRAZOS]) {
+    if (S[n]) S[n].blanca = teñida(S[n].img, "#ffffff");
   }
-  for (const n of ["jugador", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
-    S[n].roja = teñida(S[n].img, "#ff4a4a");
+  for (const n of ["jugador", ...BRAZOS]) {
+    if (S[n]) S[n].roja = teñida(S[n].img, "#ff4a4a");
   }
 }
 

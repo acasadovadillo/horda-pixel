@@ -239,6 +239,43 @@ const SONIDOS = {
     tono("square", 110, 40, 0.3, 1.2, 0.1);
   },
   boton() { tono("square", 660, 660, 0.1, 0.04); },
+  // Armas nuevas (sintetizadas)
+  barrido() { golpeDeRuido(0.22, 0.14, "bandpass", 700 + Math.random() * 200, 1.2); },
+  bate() {
+    golpeDeRuido(0.7, 0.09, "lowpass", 600);
+    tono("triangle", 160, 70, 0.45, 0.1);
+  },
+  machete() {
+    golpeDeRuido(0.45, 0.06, "highpass", 2200, 0.9);
+    golpeDeRuido(0.5, 0.12, "lowpass", 800, 0.8, 0.02);
+  },
+  francotirador() {
+    if (grabacion("remington_disparo", 1, 0, 0.82)) {
+      grabacion("remington_corredera", 0.7, 0.45, 0.9);     // cerrojo
+      return;
+    }
+    golpeDeRuido(1.0, 0.4, "lowpass", 2200);
+    tono("triangle", 140, 30, 0.9, 0.3);
+    golpeDeRuido(0.3, 0.05, "highpass", 2800, 0.7, 0.5);
+  },
+  ballesta() {
+    tono("triangle", 210, 90, 0.35, 0.12);
+    golpeDeRuido(0.3, 0.05, "bandpass", 1500, 2);
+    golpeDeRuido(0.15, 0.2, "bandpass", 500, 1.5, 0.02);
+  },
+  lanzallamas() { golpeDeRuido(0.32, 0.2, "lowpass", 900 + Math.random() * 300, 0.6); },
+  lanzar() { golpeDeRuido(0.2, 0.18, "bandpass", 600, 1); },
+  explosion() {
+    golpeDeRuido(1.0, 0.9, "lowpass", 700, 0.7);
+    tono("sine", 90, 25, 1.0, 0.7);
+    golpeDeRuido(0.6, 0.15, "lowpass", 3000, 0.5);
+  },
+  cristal() {
+    golpeDeRuido(0.45, 0.12, "highpass", 4000, 0.8);
+    tono("triangle", 2600, 1800, 0.12, 0.08);
+    tono("triangle", 3300, 2400, 0.1, 0.06, 0.03);
+  },
+  prender() { golpeDeRuido(0.5, 0.6, "lowpass", 700, 0.7, 0.05); },
 };
 
 // Reproduce un sonido; minimo = segundos mínimos entre dos iguales.
