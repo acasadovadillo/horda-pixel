@@ -72,3 +72,42 @@ export const BOTIN = {
   curaBotiquin: 30,
   duracionEnSuelo: 14,            // s antes de desaparecer
 };
+
+// ------------------------------------------------------------------ base fortificada y tienda
+// Tras cada ronda los zombis paran: vuelves a la base, compras, y la siguiente empieza al pulsar LISTO.
+export const BASE = {
+  vida: [150, 300, 500],          // vida de cada tramo de muro: madera, chapa, hormigón
+  tramo: 48,                      // ancho de un tramo (px)
+  alambre: { lentitud: 0.45, dano: 5 },   // el alambre deja a los zombis al 45 % de velocidad y quita 5 de vida por segundo
+  chaleco: 50,                    // puntos de chaleco: se gastan antes que la vida
+  botiquinesMax: 2,               // botiquines que puedes llevar encima
+  curaBotiquin: 40,
+};
+
+// Munición: lo que llevas al empezar (o al comprar el arma), el máximo de reserva y cuánto trae cada compra.
+export const MUNICION = {
+  pistola: { inicial: 68, maximo: 170, lote: 34, precio: 5 },
+  subfusil: { inicial: 60, maximo: 270, lote: 60, precio: 9 },
+  escopeta: { inicial: 10, maximo: 45, lote: 10, precio: 9 },
+};
+
+// Mejoras por arma (nivel 0 = de serie). cargador: balas por cargador en cada nivel.
+export const MEJORAS = {
+  dano: { factor: [1, 1.2, 1.42, 1.7], precio: [30, 65, 120] },
+  recarga: { factor: [1, 0.85, 0.72, 0.6], precio: [25, 55, 100] },
+  cargador: {
+    pistola: [17, 22, 27, 33], subfusil: [30, 40, 50, 60], escopeta: [5, 6, 7, 8],
+    precio: [25, 55, 100],
+  },
+};
+
+export const PRECIOS = {
+  subfusil: 80, escopeta: 120,    // la Glock se tiene desde el principio
+  curar: 6,                       // +25 de vida
+  curarTodoPor25: 5,              // curar del todo: 5 monedas por cada 25 que falten
+  botiquin: 15,
+  chaleco: 40, rellenarChaleco: 20,
+  repararPor20: 1,                // reparar muros: 1 moneda por cada 20 de vida que falte
+  reforzar: [90, 180],            // pasar a chapa, pasar a hormigón
+  alambre: 70,
+};

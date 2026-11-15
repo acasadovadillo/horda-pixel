@@ -33,8 +33,29 @@ export function teñida(img, color) {
   return c;
 }
 
+// Sprites que pueden no estar todavía (el juego dibuja algo sencillo en su lugar).
+const OPCIONALES = ["muro", "porton", "alambre", "tienda", "iconos_tienda"];
+
 export async function cargarSprites(base = "assets/") {
-  await Promise.all(NOMBRES.map(async (n) => {
+  await Promise.all([...NOMBRES, ...OPCIONALES].map(async (n) => {
+    if (OPCIONALES.includes(n)) {
+      try { await cargarUno(base, n); } catch (e) { /* aún sin dibujar */ }
+      return;
+    }
+    await cargarUno(base, n);
+  }));
+  await prepararVariantes(base);
+  for (const n of ["palotes", "cifras_sangre"]) S[n].blanca = teñida(S[n].img, "#f2ece4");
+  for (const n of ["jugador", "zombi", "zombi_b", "zombi_c", "corredor", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
+    S[n].blanca = teñida(S[n].img, "#ffffff");
+  }
+  for (const n of ["jugador", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
+    S[n].roja = teñida(S[n].img, "#ff4a4a");
+  }
+}
+
+async function cargarUno(base, n) {
+  {
     const [img, data] = await Promise.all([
       cargarImagen(base + n + ".png"),
       fetch(base + n + ".json").then((r) => r.json()),
@@ -50,14 +71,6 @@ export async function cargarSprites(base = "assets/") {
       (puntos[nombre] ??= {})[idx === undefined ? "*" : +idx] = { x: b.x, y: b.y };
     }
     S[n] = { img, frames, tags, puntos, w: frames[0].w, h: frames[0].h };
-  }));
-  for (const n of ["jugador", "zombi", "zombi_b", "zombi_c", "corredor", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
-    S[n].blanca = teñida(S[n].img, "#ffffff");
-  }
-  await prepararVariantes(base);
-  for (const n of ["palotes", "cifras_sangre"]) S[n].blanca = teñida(S[n].img, "#f2ece4");
-  for (const n of ["jugador", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
-    S[n].roja = teñida(S[n].img, "#ff4a4a");
   }
 }
 

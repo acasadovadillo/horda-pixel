@@ -1,11 +1,13 @@
 // Partida: jugador, zombis, balas, botín, oleadas, cámara, luces, interfaz.
-import { PANTALLA, JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN } from "./config.js";
+import { PANTALLA, JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
 import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, leerApuntado, RADIO_STICK } from "./entrada.js";
 import { sonar, sonarRecarga, sonarCartucho, sonarCorredera, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
 import { pantallaCompletaHorizontal } from "./pantalla.js";
 import { crearRagdoll, moverRagdoll, dibujarRagdoll, asentado } from "./ragdoll.js";
+import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo, dibujarAlambre, dibujarTienda } from "./base.js";
+import { pantallaTienda } from "./tienda.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
 const ORDEN_ARMAS = ["pistola", "subfusil", "escopeta"];
@@ -56,9 +58,15 @@ export class Juego {
     if (this.mapa.usado) this.mapa = crearMapa();
     this.mapa.usado = true;
     const s = this.mapa.salida;
+    this.base = crearBase(this.mapa);
     this.jugador = {
       x: s.x, y: s.y, vida: JUGADOR.vida, arma: "pistola",
-      cargador: Object.fromEntries(ORDEN_ARMAS.map((a) => [a, ARMAS[a].cargador])),
+      // Solo la Glock al empezar; las otras se compran en la tienda de la base
+      armas: { pistola: true, subfusil: false, escopeta: false },
+      cargador: { pistola: ARMAS.pistola.cargador, subfusil: 0, escopeta: 0 },
+      reserva: { pistola: MUNICION.pistola.inicial, subfusil: 0, escopeta: 0 },
+      mejoras: Object.fromEntries(ORDEN_ARMAS.map((a) => [a, { dano: 0, cargador: 0, recarga: 0 }])),
+      botiquines: 0, chaleco: 0,
       recarga: 0, espera: 0, angulo: -Math.PI / 2, voltear: false, anim: 0, andando: false,
       golpe: 0, muerto: 0, sinBlanco: 0, tDisparo: 9,
     };
@@ -67,8 +75,9 @@ export class Juego {
     this.cuerpoJugador = null;   // al morir, la cámara sigue al cuerpo
     this.ragdolls = [];          // cuerpos cayendo y trozos volando (después se quedan pintados en el suelo)
     this.blanco = null;
-    this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0, superada: 0 };
+    this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0, superada: 0, esperando: false };
     this.stats = { bajas: 0, monedas: 0, tiempo: 0, disparos: 0, impactos: 0, dano: 0, recibido: 0 };
+    this.monedas = 0;              // las que llevas para gastar (stats.monedas = todas las recogidas)
     this.camara = { x: s.x - this.ancho / 2, y: s.y - this.alto * ALTURA_JUGADOR };
     this.sacudida = 0;
     this.t = 0;
@@ -78,6 +87,9 @@ export class Juego {
   tecla(c) {
     if (c === "Digit1" || c === "Digit2" || c === "Digit3") this.cambiarArma(ORDEN_ARMAS[+c.slice(5) - 1]);
     if (c === "KeyR") this.empezarRecarga();
+    if (c === "KeyH") this.usarBotiquin();
+    if (c === "KeyT" && this.puedeComprar()) this.abrirTienda();
+    if (c === "KeyL" && this.oleada.esperando && this.estado === "jugando") this.listo();
     if (c === "KeyP" || c === "Escape") this.pausar();
     if ((c === "Enter" || c === "Space") && (this.estado === "inicio" || this.estado === "fin")) this.empezar();
   }
@@ -89,6 +101,47 @@ export class Juego {
     this.reiniciar();
   }
 
+  // ------------------------------------------------------------------ base y tienda
+  // Estadísticas de un arma con sus mejoras compradas.
+  arma(n) {
+    const a = ARMAS[n], m = this.jugador.mejoras[n];
+    return {
+      ...a,
+      dano: a.dano * MEJORAS.dano.factor[m.dano],
+      recarga: a.recarga * MEJORAS.recarga.factor[m.recarga],
+      preparar: (a.preparar || 0) * MEJORAS.recarga.factor[m.recarga],
+      cargador: MEJORAS.cargador[n][m.cargador],
+    };
+  }
+
+  // Se compra entre rondas y dentro de la base.
+  puedeComprar() {
+    return this.estado === "jugando" && this.oleada.esperando && !this.jugador.muerto && dentro(this.base, this.jugador.y);
+  }
+  abrirTienda() { this.estado = "tienda"; this.pestana ??= "armas"; sonar("boton"); }
+  cerrarTienda() { this.estado = "jugando"; sonar("boton"); }
+
+  // LISTO: empieza la siguiente ronda.
+  listo() {
+    const o = this.oleada;
+    if (!o.esperando) return;
+    o.esperando = false; o.descanso = 1.2;
+    sonar("boton");
+  }
+
+  usarBotiquin() {
+    const j = this.jugador;
+    if (j.muerto || j.botiquines <= 0 || j.vida >= JUGADOR.vida) return;
+    j.botiquines--;
+    const antes = j.vida;
+    j.vida = Math.min(JUGADOR.vida, j.vida + BASE.curaBotiquin);
+    this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: "+" + Math.round(j.vida - antes), color: "#7ee07e" });
+    sonar("curar");
+  }
+
+  // ¿Le quedan balas a esta arma (en el cargador o en la reserva)?
+  conBalas(n) { const j = this.jugador; return j.armas[n] && (j.cargador[n] > 0 || j.reserva[n] > 0); }
+
   pausar() {
     this.verEstadisticas = false;
     if (this.estado === "jugando") this.estado = "pausa";
@@ -98,14 +151,18 @@ export class Juego {
   cambiarArma(a) {
     const j = this.jugador;
     if (!a || a === j.arma || j.muerto) return;
+    if (!j.armas[a]) {                       // aún no comprada
+      this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: t("seCompra"), color: "#d1cec0" });
+      return;
+    }
     j.arma = a; j.recarga = 0; j.espera = 0.15; j.tDisparo = 9;
     cancelarRecarga();
     sonar("recargado");
   }
 
   empezarRecarga() {
-    const j = this.jugador, a = ARMAS[j.arma];
-    if (j.recarga > 0 || j.cargador[j.arma] >= a.cargador || j.muerto) return;
+    const j = this.jugador, a = this.arma(j.arma);
+    if (j.recarga > 0 || j.cargador[j.arma] >= a.cargador || j.muerto || j.reserva[j.arma] <= 0) return;
     if (a.porCartucho) {
       // Escopeta: se gira el arma y se meten los cartuchos de uno en uno por debajo.
       j.recamaraVacia = j.cargador[j.arma] === 0;
@@ -123,7 +180,7 @@ export class Juego {
   actualizar(dt) {
     entrada.botones = [];
     if (this.estado === "inicio") this.moverCamara(1);
-    if (this.estado === "pausa" || this.estado === "inicio") return;
+    if (this.estado === "pausa" || this.estado === "inicio" || this.estado === "tienda") return;
     this.t += dt;
     if (this.estado === "jugando") this.stats.tiempo += dt;
 
@@ -151,6 +208,10 @@ export class Juego {
     j.x += mx * JUGADOR.velocidad * dt;
     j.y += my * JUGADOR.velocidad * dt;
     resolverChoques(this.mapa, j, JUGADOR.radio);
+    chocarMuro(this.base, j, JUGADOR.radio, true);
+    // El portón se abre mientras el jugador está cerca
+    const p = this.base.tramos.find((tr) => tr.porton);
+    this.base.abierto = Math.abs(j.x - p.x) < 30 && Math.abs(j.y - p.y) < 28 ? 0.4 : Math.max(0, this.base.abierto - dt);
     j.anim += dt * (j.andando ? 0.45 + 0.55 * fuerza : 1);
     if (j.andando && !this.blanco) j.angulo = Math.atan2(my, mx);
   }
@@ -201,7 +262,7 @@ export class Juego {
   }
 
   disparar(dt) {
-    const j = this.jugador, a = ARMAS[j.arma];
+    const j = this.jugador, a = this.arma(j.arma);
     if (j.muerto) return;
     j.espera = Math.max(0, j.espera - dt);
     j.tDisparo += dt;
@@ -214,11 +275,13 @@ export class Juego {
       j.recarga -= dt;
       if (j.recarga <= 0) {
         j.recarga = 0;
-        if (!a.porCartucho) j.cargador[j.arma] = a.cargador;
-        else {
-          j.cargador[j.arma]++;
+        if (!a.porCartucho) {
+          const toma = Math.min(a.cargador - j.cargador[j.arma], j.reserva[j.arma]);
+          j.cargador[j.arma] += toma; j.reserva[j.arma] -= toma;
+        } else {
+          j.cargador[j.arma]++; j.reserva[j.arma]--;
           sonarCartucho();
-          if (j.cargador[j.arma] < a.cargador && !(quiere && j.cargador[j.arma] > 0)) {
+          if (j.cargador[j.arma] < a.cargador && j.reserva[j.arma] > 0 && !(quiere && j.cargador[j.arma] > 0)) {
             j.recarga = j.recargaPaso = a.recarga;            // siguiente cartucho
           } else if (j.recamaraVacia) {
             j.recamaraVacia = false;                          // corredera para meter el primero en la recámara
@@ -241,7 +304,18 @@ export class Juego {
       if (j.sinBlanco > 1.2 && j.cargador[j.arma] < a.cargador) this.empezarRecarga();
     }
     if (!quiere || j.recarga > 0 || j.espera > 0) return;
-    if (j.cargador[j.arma] <= 0) { this.empezarRecarga(); return; }
+    if (j.cargador[j.arma] <= 0) {
+      if (j.reserva[j.arma] > 0) this.empezarRecarga();
+      else {                                  // sin balas: a otra arma que tenga, o «SIN BALAS»
+        const otra = ORDEN_ARMAS.find((n) => n !== j.arma && this.conBalas(n));
+        if (otra) this.cambiarArma(otra);
+        else if (!this.avisoSinBalas || this.t - this.avisoSinBalas > 1.5) {
+          this.avisoSinBalas = this.t;
+          this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: t("sinBalas"), color: "#ff5a5a" });
+        }
+      }
+      return;
+    }
 
     // ¡Fuego!
     j.cargador[j.arma]--;
@@ -266,7 +340,7 @@ export class Juego {
     });
     this.sacudida = Math.max(this.sacudida, a.sacudida);
     sonar(a.sonido, a.cadencia > 5 ? 0.06 : 0);
-    if (j.cargador[j.arma] === 0) this.empezarRecarga();
+    if (j.cargador[j.arma] === 0 && j.reserva[j.arma] > 0) this.empezarRecarga();
   }
 
   // ------------------------------------------------------------------ zombis
@@ -283,6 +357,7 @@ export class Juego {
       }
       y = Math.max(y, this.jugador.y - OLEADAS.distanciaAparicion - rnd(0, 45));
       if (y < 30) y = rnd(30, 90);
+      y = Math.min(y, this.base.y - 50);          // nunca dentro de la base
       x = Math.max(12, Math.min(m.ancho - 12, x));
       if (!chocaCon(m, x, y, def.radio + 2)) break;
     }
@@ -321,17 +396,46 @@ export class Juego {
         const tg = orientar(z.spr, "atacar", z.ang).tag;
         const total = duracion(z.spr, tg);
         const golpeEn = total - z.spr.frames[primero(z.spr, tg)].dur;
-        if (antes > golpeEn && z.ataque <= golpeEn && d <= z.def.alcance + 9 && !j.muerto) this.herirJugador(z.def.dano, z);
+        if (antes > golpeEn && z.ataque <= golpeEn) {
+          if (z.objetivo) this.golpearMuro(z.objetivo, z.def.dano);
+          else if (d <= z.def.alcance + 9 && !j.muerto) this.herirJugador(z.def.dano, z);
+        }
+        if (z.objetivo) z.ang = z.objetivo.y > z.y ? Math.PI / 2 : -Math.PI / 2;
         if (z.ataque <= 0) z.espera = Math.max(0, z.def.cadencia - total);
         continue;
       }
       z.espera = Math.max(0, z.espera - dt);
+      z.objetivo = null;
       if (d <= z.def.alcance && !j.muerto) {
         if (z.espera <= 0) { z.ataque = duracion(z.spr, orientar(z.spr, "atacar", z.ang).tag); sonar("zarpazo", 0.05); }
         continue;
       }
-      // Andar hacia el jugador; si se atasca, rodea el obstáculo un rato
-      let ux = dx / d, uy = dy / d;
+      // El muro en medio: si toca un tramo en pie, lo golpea
+      const otroLado = !j.muerto && dentro(this.base, j.y) !== dentro(this.base, z.y);
+      if (otroLado) {
+        const tr = tramoTocado(this.base, z, z.def.radio);
+        if (tr) {
+          z.ang = tr.y > z.y ? Math.PI / 2 : -Math.PI / 2;
+          if (z.espera <= 0) {
+            z.objetivo = tr;
+            z.ataque = duracion(z.spr, orientar(z.spr, "atacar", z.ang).tag);
+          }
+          continue;
+        }
+      }
+      // Andar hacia el jugador (o hacia un hueco del muro si está al otro lado); si se atasca, rodea el obstáculo
+      let mx = j.x, my = j.y;
+      if (otroLado) {
+        const h = huecoCercano(this.base, z.x);
+        if (h) { mx = h.x; my = h.y + (dentro(this.base, z.y) ? -14 : 14); if (Math.abs(z.x - h.x) < 14 && Math.abs(z.y - h.y) < 16) { mx = j.x; my = j.y; } }
+        else {
+          // Sin hueco: van al tramo de muro que tiene delante el jugador (cada uno algo desviado), no al más cercano
+          z.desvioMuro ??= rnd(-70, 70);
+          mx = j.x + z.desvioMuro; my = this.base.y + (dentro(this.base, z.y) ? 12 : -12);
+        }
+      }
+      const ex = mx - z.x, ey = my - z.y, ed = Math.hypot(ex, ey) || 1;
+      let ux = ex / ed, uy = ey / ed;
       if (j.muerto) { ux = -ux * 0.2; uy = -uy * 0.2; }
       if (z.desvio > 0) {
         z.desvio -= dt;
@@ -340,7 +444,15 @@ export class Juego {
         const l = Math.hypot(ux, uy); ux /= l; uy /= l;
       }
       const ox = z.x, oy = z.y;
-      z.x += ux * z.vel * dt; z.y += uy * z.vel * dt;
+      // Alambre de espino delante del muro: frena y hiere
+      const enAlambre = this.base.alambre && z.y > this.base.y - 50 && z.y < this.base.y - 8;
+      const vel = z.vel * (enAlambre ? BASE.alambre.lentitud : 1);
+      if (enAlambre) {
+        z.vida -= BASE.alambre.dano * dt;
+        if (Math.random() < dt * 3) this.gota(z.x, z.y, rnd(2, 12), rnd(-20, 20), rnd(-8, 8), rnd(10, 40));
+        if (z.vida <= 0) { this.matarZombi(z, { x: 0, y: -1 }, 0.6); continue; }
+      }
+      z.x += ux * vel * dt; z.y += uy * vel * dt;
       // Separarse de otros zombis
       for (const o of vivos) {
         if (o === z) continue;
@@ -356,6 +468,7 @@ export class Juego {
       const jx = z.x - j.x, jy = z.y - j.y, jd = Math.hypot(jx, jy);
       if (jd < rj && jd > 1e-4 && !j.muerto) { z.x = j.x + (jx / jd) * rj; z.y = j.y + (jy / jd) * rj; }
       resolverChoques(m, z, z.def.radio);
+      chocarMuro(this.base, z, z.def.radio, false);
       const avance = Math.hypot(z.x - ox, z.y - oy);
       if (avance < z.vel * dt * 0.3) {
         z.atasco += dt;
@@ -366,8 +479,20 @@ export class Juego {
     this.zombis = this.zombis.filter((z) => !z.muerto);
   }
 
+  // Un zombi golpea un tramo del muro.
+  golpearMuro(tr, dano) {
+    if (tr.vida <= 0) return;
+    tr.vida = Math.max(0, tr.vida - dano);
+    tr.barra = 2;
+    sonar("impacto", 0.05);
+    for (let i = 0; i < 3; i++) this.particulas.push({ x: tr.x + rnd(-20, 20), y: tr.y - 4, z: rnd(8, 20), vx: rnd(-30, 30), vy: rnd(-25, 0), vz: rnd(30, 70), color: ["#5c3d22", "#6e7885", "#949493"][this.base.nivel], vida: 1.2 });
+    if (tr.vida <= 0) { sonar("muereZombi"); this.sacudida = Math.max(this.sacudida, 2); }
+  }
+
   herirJugador(dano, desde = null) {
     const j = this.jugador;
+    const para = Math.min(j.chaleco, dano);        // el chaleco se gasta primero
+    j.chaleco -= para; dano -= para;
     j.vida = Math.max(0, j.vida - dano);
     j.golpe = 0.18;
     this.stats.recibido += dano;
@@ -447,7 +572,7 @@ export class Juego {
   }
 
   impacto(z, b, x, y) {
-    const a = ARMAS[b.arma];
+    const a = this.arma(b.arma);
     const critico = Math.random() < a.critico;
     const dano = a.dano * (critico ? 2 : 1);
     z.vida -= dano;
@@ -505,13 +630,16 @@ export class Juego {
       // Con la vida llena el botiquín se queda en el suelo: ni se atrae ni se recoge.
       if (o.tipo === "botiquin" && j.vida >= JUGADOR.vida) continue;
       const dx = j.x - o.x, dy = j.y - 8 - o.y, d = Math.hypot(dx, dy) || 1;
-      const iman = o.tipo === "moneda" ? JUGADOR.recogerMonedas : 15;
-      if (d < iman && o.t > 0.35) {
+      const iman = o.iman ? 1e6 : o.tipo === "moneda" ? JUGADOR.recogerMonedas : 15;
+      if (o.iman && o.t > 0.35) {                    // al acabar la ronda vuelan hasta ti
+        const v = 260 + o.t * 40;
+        o.x += (dx / d) * Math.min(d, v * dt); o.y += (dy / d) * Math.min(d, v * dt);
+      } else if (d < iman && o.t > 0.35) {
         const v = 240 * (1 - d / (iman + 1)) + 60;
         o.x += (dx / d) * v * dt; o.y += (dy / d) * v * dt;
       }
       if (d < 9 && o.t > 0.35) {
-        if (o.tipo === "moneda") { this.stats.monedas++; sonar("moneda", 0.03); }
+        if (o.tipo === "moneda") { this.stats.monedas++; this.monedas++; sonar("moneda", 0.03); }
         else if (o.tipo === "botiquin") {
           const antes = j.vida;
           j.vida = Math.min(JUGADOR.vida, j.vida + BOTIN.curaBotiquin);
@@ -521,7 +649,8 @@ export class Juego {
         o.recogido = true;
       }
     }
-    this.botin = this.botin.filter((o) => !o.recogido && o.t < BOTIN.duracionEnSuelo);
+    // Las monedas no caducan (se recogen al acabar la ronda); los botiquines sí
+    this.botin = this.botin.filter((o) => !o.recogido && (o.tipo === "moneda" || o.t < BOTIN.duracionEnSuelo));
   }
 
   moverEfectos(dt) {
@@ -567,6 +696,7 @@ export class Juego {
     o.cartel = Math.max(0, o.cartel - dt);
     o.superada = Math.max(0, o.superada - dt);
     if (this.jugador.muerto) return;
+    if (o.esperando) return;               // descanso entre rondas: hasta que pulse LISTO
     if (o.descanso > 0) {
       o.descanso -= dt;
       if (o.descanso <= 0) {
@@ -590,8 +720,11 @@ export class Juego {
         o.t = Math.max(OLEADAS.intervaloMinimo, OLEADAS.intervaloBase * Math.pow(0.88, o.n - 1)) * rnd(0.6, 1.4);
       }
     } else if (vivos === 0) {
-      o.descanso = OLEADAS.descanso;
-      o.superada = 2;
+      // Ronda superada: se paran los zombis, las monedas que queden vuelan hacia ti
+      o.esperando = true;
+      o.descanso = 0;
+      o.superada = 2.5;
+      for (const b of this.botin) if (b.tipo === "moneda") b.iman = true;
     }
   }
 
@@ -600,7 +733,9 @@ export class Juego {
     const c = this.camara, m = this.mapa;
     const j = this.cuerpoJugador ? this.cuerpoJugador.pts.P : this.jugador;
     const ox = j.x - this.ancho / 2;
-    const oy = j.y - this.alto * ALTURA_JUGADOR;  // se ve más por delante (arriba), de donde vienen
+    let oy = j.y - this.alto * ALTURA_JUGADOR;    // se ve más por delante (arriba), de donde vienen
+    // Dentro de la base, el muro va hacia la mitad de la pantalla para ver llegar a los zombis
+    if (this.base && j.y > this.base.y - 20) oy = Math.min(oy, Math.max(this.base.y - this.alto * 0.42, j.y - this.alto + 10));
     const k = 1 - Math.exp(-dt * 6);
     c.x += (ox - c.x) * k; c.y += (oy - c.y) * k;
     c.x = Math.max(0, Math.min(m.ancho - this.ancho, c.x));
@@ -627,6 +762,9 @@ export class Juego {
     // Suelo
     g.drawImage(this.mapa.suelo, cx, cy, this.ancho, this.alto, cx, cy, this.ancho, this.alto);
 
+    // Alambre de espino en el suelo, por fuera del muro
+    dibujarAlambre(g, this.base);
+
     // Sombras en el suelo
     g.fillStyle = "rgba(8,7,14,0.38)";
     const sombra = (x, y, rx, ry = rx * 0.38) => { g.beginPath(); g.ellipse(Math.round(x), Math.round(y), rx, ry, 0, 0, Math.PI * 2); g.fill(); };
@@ -646,6 +784,8 @@ export class Juego {
     // Todo lo que está de pie, ordenado por la y de los pies
     const cosas = [];
     for (const o of this.mapa.objetos) if (this.enPantalla(o.x, o.y, 70)) cosas.push({ y: o.y, f: () => this.dibujarObjeto(g, o) });
+    for (const tr of this.base.tramos) if (this.enPantalla(tr.x, tr.y, 40)) cosas.push({ y: tr.y, f: () => dibujarTramo(g, this.base, tr) });
+    if (this.enPantalla(this.base.tienda.x, this.base.tienda.y, 60)) cosas.push({ y: this.base.tienda.y, f: () => dibujarTienda(g, this.base, this.t) });
     for (const z of this.zombis) if (!z.muerto && this.enPantalla(z.x, z.y)) cosas.push({ y: z.y, f: () => this.dibujarZombi(g, z) });
     for (const o of this.botin) cosas.push({ y: o.y - 0.5, f: () => this.dibujarBotin(g, o) });
     if (!j.ragdoll) cosas.push({ y: j.y, f: () => this.dibujarJugador(g) });
@@ -694,6 +834,15 @@ export class Juego {
     g.save();
     g.translate(-cx, -cy);
     this.dibujarOjos(g);
+    // Vida de los tramos del muro que están recibiendo golpes
+    for (const tr of this.base.tramos) {
+      tr.barra = Math.max(0, tr.barra - 1 / 60);
+      if (tr.vida <= 0 || tr.vida >= tr.vidaMax || (tr.barra <= 0 && !this.oleada.esperando)) continue;
+      const w = 30, x = Math.round(tr.x - w / 2), y = Math.round(tr.y - 40);
+      g.fillStyle = "#0e0d12"; g.fillRect(x - 1, y - 1, w + 2, 5);
+      g.fillStyle = "#3a2c23"; g.fillRect(x, y, w, 3);
+      g.fillStyle = "#d9a233"; g.fillRect(x, y, Math.max(1, Math.round(w * tr.vida / tr.vidaMax)), 3);
+    }
     for (const z of this.zombis) {
       if (z.muerto || z.barra <= 0 || z.vida >= z.vidaMax) continue;
       const w = 16, x = Math.round(z.x - w / 2), y = Math.round(z.y - 44);
@@ -774,7 +923,7 @@ export class Juego {
 
   // Brazos con el arma, girados alrededor del hombro hacia donde apunta
   dibujarBrazos(g, destello) {
-    const j = this.jugador, a = ARMAS[j.arma], br = S["brazos_" + j.arma];
+    const j = this.jugador, a = this.arma(j.arma), br = S["brazos_" + j.arma];
     const geo = this.geometriaArma();
     let fi = primero(br, "apuntar");
     if (j.recarga > 0) fi = fotogramaPorAvance(br, "recargar", 1 - j.recarga / (j.recargaPaso || a.recarga));
@@ -844,7 +993,7 @@ export class Juego {
 
   dibujarBotin(g, o) {
     const spr = S[o.tipo];
-    if (o.t > BOTIN.duracionEnSuelo - 3 && Math.floor(o.t * 8) % 2) return;   // parpadea antes de irse
+    if (o.tipo !== "moneda" && o.t > BOTIN.duracionEnSuelo - 3 && Math.floor(o.t * 8) % 2) return;   // parpadea antes de irse
     const i = o.tipo === "moneda" ? fotograma(spr, "girar", o.anim) : 0;
     const flota = o.tipo === "botiquin" && o.z === 0 ? Math.round(Math.sin(o.t * 4)) : 0;
     dibujar(g, spr, i, o.x - spr.w / 2, o.y - spr.h - o.z + flota);
@@ -893,10 +1042,24 @@ export class Juego {
     g.fillRect(21, 6, Math.round(bw * pv), 8);
     g.fillStyle = "rgba(255,255,255,0.3)"; g.fillRect(21, 6, Math.round(bw * pv), 2);
     texto(g, Math.ceil(j.vida), 21 + bw + 5, 5);
+    // Chaleco: barra azul fina debajo de la vida
+    if (j.chaleco > 0) {
+      g.fillStyle = "#0e0d12"; g.fillRect(20, 15, bw + 2, 4);
+      g.fillStyle = "#6d93a8"; g.fillRect(21, 16, Math.round(bw * j.chaleco / BASE.chaleco), 2);
+    }
+    // Botiquines que llevas encima: se usan tocándolos
+    if (j.botiquines > 0 && this.estado === "jugando" && !j.muerto) {
+      const bx0 = 21 + bw + 5 + anchoTexto("100") + 8;
+      g.fillStyle = "#0e0d12"; g.fillRect(bx0, 2, 34, 20);
+      g.fillStyle = j.vida < JUGADOR.vida ? "#3b526b" : "#26252e"; g.fillRect(bx0 + 1, 3, 32, 18);
+      dibujar(g, S.botiquin, 0, bx0 + 3, 4);
+      texto(g, "×" + j.botiquines, bx0 + 31, 7, "#ffffff", "der");
+      this.boton(bx0 - 4, 0, 42, 26, () => this.usarBotiquin());
+    }
 
     // Ronda pintada con sangre, debajo de la vida (las bajas están en Estadísticas, en la pausa)
     const o = this.oleada;
-    this.dibujarRonda(g, 0, 15);
+    this.dibujarRonda(g, 0, 20);
     // Pausa: botón grande arriba a la derecha y zona tocable aún más grande alrededor
     const pw = 30, ph = 28, bx = W - pw - 4, by = 3;
     g.fillStyle = "#0e0d12"; g.fillRect(bx, by, pw, ph);
@@ -906,12 +1069,12 @@ export class Juego {
     this.boton(bx - 14, 0, pw + 18, ph + 16, () => { sonar("boton"); this.pausar(); });
 
     // Monedas, a la izquierda del botón de pausa
-    const txtM = String(this.stats.monedas);
+    const txtM = String(this.monedas);
     texto(g, txtM, bx - 8, by + 9, "#f2c84a", "der");
     dibujar(g, S.moneda, 0, bx - 8 - anchoTexto(txtM) - 13, by + 9);
 
     // Armas (abajo a la derecha; en disparo manual, abajo en el centro porque ahí va el joystick de apuntar).
-    // De momento se pueden elegir todas para probarlas.
+    // Las que no has comprado salen con candado.
     const manual = this.disparo === "manual";
     const slotW = 40, slotH = 24, gap = 3, totalW = (slotW + gap) * ORDEN_ARMAS.length - gap;
     const x0 = manual ? Math.round(W / 2 - totalW / 2) : W - totalW - 5, y0 = H - slotH - 8;
@@ -921,14 +1084,16 @@ export class Juego {
       g.fillStyle = "#0e0d12"; g.fillRect(x, y0, slotW, slotH);
       g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(x + 1, y0 + 1, slotW - 2, slotH - 2);
       if (sel) { g.fillStyle = "#f2c84a"; g.fillRect(x + 1, y0 + 1, slotW - 2, 2); }
-      const spr = S[nombre];
-      g.globalAlpha = sel ? 1 : 0.7;
+      const spr = S[nombre], tiene = j.armas[nombre];
+      g.globalAlpha = sel ? 1 : tiene ? 0.7 : 0.25;
       dibujar(g, spr, 0, x + Math.floor((slotW - spr.w) / 2), y0 + 1 + Math.floor((slotH - spr.h) / 2));
       g.globalAlpha = 1;
+      if (!tiene) this.icono(g, 13, x + slotW / 2 - 8, y0 + 4, 16);
+      else if (!this.conBalas(nombre)) texto(g, "0", x + slotW - 3, y0 + slotH - 11, "#ff5a5a", "der");
       this.boton(x - 1, y0 - 6, slotW + 2, slotH + 14, () => this.cambiarArma(nombre));
     });
     // Munición y recarga encima de las armas
-    const a = ARMAS[j.arma];
+    const a = this.arma(j.arma);
     const yMun = y0 - 14;
     if (j.recarga > 0) {
       const w = 56, x = xDer - w;
@@ -943,7 +1108,9 @@ export class Juego {
       texto(g, t("recargando") + (a.porCartucho ? " " + j.cargador[j.arma] + "/" + a.cargador : ""), x - 5, yMun, "#ffffff", "der");
     } else {
       const quedan = j.cargador[j.arma];
-      texto(g, t(j.arma) + "  " + quedan + "/" + a.cargador, xDer, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");
+      const res = j.reserva[j.arma];
+      const wr = texto(g, String(res), xDer, yMun, res === 0 ? "#ff5a5a" : "#d1cec0", "der");
+      texto(g, t(j.arma) + "  " + quedan + " / ", xDer - wr, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");
     }
 
     // Joystick fijo abajo a la izquierda (siempre visible mientras se juega)
@@ -1002,9 +1169,20 @@ export class Juego {
     // Carteles (el cambio de ronda lo anuncia el propio indicador parpadeando)
     if (this.estado !== "jugando") { /* sin carteles detrás de los menús */ }
     else if (o.superada > 0) {
-      texto(g, t("oleadaSuperada"), W / 2, H * 0.3, "#7ee07e", "centro", 2);
+      texto(g, t("oleadaSuperada"), W / 2, H * 0.46, "#7ee07e", "centro", 2);
     }
 
+    // Descanso entre rondas: LISTO para seguir y TIENDA si estás dentro de la base
+    if (this.estado === "jugando" && o.esperando && !j.muerto) {
+      const dentroBase = dentro(this.base, j.y);
+      const bw2 = Math.max(anchoTexto(t("listo"), 2), anchoTexto(t("tienda"), 2)) + 24, gap2 = 8;
+      const ancho = dentroBase ? bw2 * 2 + gap2 : bw2, xb = Math.round(W / 2 - ancho / 2), yb = 36;
+      if (dentroBase) this.botonGrande(g, t("tienda"), yb, () => this.abrirTienda(), "#8a6a24", xb, bw2);
+      this.botonGrande(g, t("listo"), yb, () => this.listo(), "#4a6a34", dentroBase ? xb + bw2 + gap2 : xb, bw2);
+      texto(g, t(dentroBase ? "ayudaDescanso" : "vuelveBase"), W / 2, yb + 36, "#d1cec0", "centro");
+    }
+
+    if (this.estado === "tienda") pantallaTienda(this, g);
     if (this.estado === "pausa") this.pantallaPausa(g);
     if (this.estado === "fin") this.pantallaFin(g);
   }
@@ -1028,6 +1206,17 @@ export class Juego {
       [...String(n)].forEach((d, i) => dibujar(g, c, +d, i * 12, 0, false, blanca ? c.blanca : c.img));
     }
     g.restore();
+  }
+
+  // Icono de la tienda (fotograma i de iconos_tienda) en (x, y), escalado a «tam» px.
+  icono(g, i, x, y, tam = 24) {
+    const s = S.iconos_tienda;
+    if (s) {
+      const f = s.frames[i];
+      g.drawImage(s.img, f.x, f.y, f.w, f.h, Math.round(x), Math.round(y), tam, tam);
+      return;
+    }
+    g.fillStyle = "#85837a"; g.fillRect(Math.round(x + tam * 0.2), Math.round(y + tam * 0.2), Math.round(tam * 0.6), Math.round(tam * 0.6));
   }
 
   velo(g, a = 0.65) {

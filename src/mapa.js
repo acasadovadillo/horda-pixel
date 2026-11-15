@@ -102,21 +102,14 @@ export function crearMapa() {
 
   const campamento = (ALTO - 7) * T;   // fila de sacos, abajo del todo
 
-  // Campamento (lo primero, para que tenga prioridad): sacos terreros con un hueco en el centro,
-  // barreras a los lados y dos hogueras
-  poner("sacos", CENTRO - 60, campamento);
-  poner("sacos", CENTRO + 60, campamento);
-  poner("barrera", X(4) + 16, campamento + 2);
-  poner("barrera", X(12) + 8, campamento + 2);
+  // Campamento dentro de la base (el muro y la tienda los pone base.js): dos hogueras y cosas tiradas
   poner("hoguera", X(5) + 4, campamento + 52);
   poner("hoguera", X(12) - 4, campamento + 52);
-  poner("caja", CENTRO - 46, campamento + 78, 1);
-  poner("caja", CENTRO - 64, campamento + 84, 0);
   poner("barril", CENTRO + 50, campamento + 82, 0);
   poner("neumaticos", CENTRO + 70, campamento + 88);
 
   // Árboles y arbustos en las cunetas
-  for (let y = 2; y < ALTO - 1; y += 3 + entero(3)) {
+  for (let y = 2; y < ALTO - 8; y += 3 + entero(3)) {
     // Cuneta junto a la carretera
     poner("arbol", X(0) + 18 + r() * 44, y * T + r() * 14, variante("arbol", [0.55, 0.25, 0.2]));
     if (r() < 0.85) poner("arbol", X(13) + 30 + r() * 44, y * T + 30 + r() * 18, variante("arbol", [0.55, 0.25, 0.2]));
@@ -129,7 +122,7 @@ export function crearMapa() {
     }
   }
   // Farolas en las aceras (unas encendidas y otras rotas)
-  for (let y = 4; y < ALTO - 3; y += 7) {
+  for (let y = 4; y < ALTO - 9; y += 7) {
     poner("farola", X(4) + 13, y * T, r() < 0.6 ? 0 : 1);
     poner("farola", X(12) + 11, y * T + 3 * T, r() < 0.6 ? 0 : 1);
   }
@@ -155,7 +148,7 @@ export function crearMapa() {
   for (let i = 0; i < 5; i++) poner("cono", enCalzada(), (6 + entero(ALTO - 24)) * T);
 
   // Quita lo que caiga sobre el punto de salida del jugador o encima de otra cosa
-  const salida = { x: CENTRO, y: campamento + 60 };
+  const salida = { x: CENTRO, y: campamento + 44 };
   for (let i = objetos.length - 1; i >= 0; i--) {
     const o = objetos[i];
     if (o.tipo !== "sacos" && o.tipo !== "hoguera" && Math.hypot(o.x - salida.x, o.y - salida.y) < 30) objetos.splice(i, 1);
@@ -170,7 +163,7 @@ export function crearMapa() {
   const cajas = objetos.filter((o) => o.caja).map((o) => o.caja);
   const luces = objetos.filter((o) => o.luz).map((o) => o.luz);
 
-  return { ancho: ANCHO * T, alto, objetos, cajas, luces, suelo, sueloCtx: g, salida, campamento };
+  return { ancho: ANCHO * T, alto, objetos, cajas, luces, suelo, sueloCtx: g, salida, campamento, centro: CENTRO };
 }
 
 // Pinta una mancha de sangre en el suelo para siempre.
@@ -179,6 +172,24 @@ export function manchar(g, x, y, i, alfa = 1) {
   g.globalAlpha = alfa;
   g.drawImage(m.img, f.x, f.y, f.w, f.h, Math.round(x - f.w / 2), Math.round(y - f.h / 2), f.w, f.h);
   g.globalAlpha = 1;
+}
+
+// Empuja un círculo (x, y, radio) fuera de una caja { x, y, w, h }. Devuelve true si chocaba.
+export function fueraDeCaja(c, e, radio) {
+  const nx = Math.max(c.x, Math.min(e.x, c.x + c.w));
+  const ny = Math.max(c.y, Math.min(e.y, c.y + c.h));
+  const dx = e.x - nx, dy = e.y - ny, d2 = dx * dx + dy * dy;
+  if (d2 >= radio * radio) return false;
+  if (d2 > 1e-6) {
+    const d = Math.sqrt(d2);
+    e.x = nx + (dx / d) * radio; e.y = ny + (dy / d) * radio;
+  } else {
+    const izq = e.x - c.x, der = c.x + c.w - e.x, arr = e.y - c.y, aba = c.y + c.h - e.y;
+    const m = Math.min(izq, der, arr, aba);
+    if (m === izq) e.x = c.x - radio; else if (m === der) e.x = c.x + c.w + radio;
+    else if (m === arr) e.y = c.y - radio; else e.y = c.y + c.h + radio;
+  }
+  return true;
 }
 
 // Empuja un círculo (x, y, radio) fuera de las cajas del mapa y de los bordes.
