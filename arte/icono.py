@@ -9,11 +9,11 @@ def base():
 
 b = base()
 for n in (180, 192, 512):
-    b.resize((n, n), Image.NEAREST).convert("RGB").save(os.path.join(raiz, "iconos", f"icono-{n}.png"))
+    b.resize((n, n), Image.NEAREST).convert("RGB").save(os.path.join(raiz, "iconos", f"icono-v2-{n}.png"))
 # Maskable: el dibujo ocupa el 70 % central
 m = Image.new("RGBA", (512, 512), b.getpixel((0, b.height - 1)))
 k = 358 // b.width
 d = b.resize((b.width * k, b.height * k), Image.NEAREST)
 m.alpha_composite(d, ((512 - d.width) // 2, (512 - d.height) // 2))
-m.convert("RGB").save(os.path.join(raiz, "iconos", "icono-maskable-512.png"))
+m.convert("RGB").save(os.path.join(raiz, "iconos", "icono-v2-maskable-512.png"))
 print("iconos listos")
