@@ -33,6 +33,14 @@ Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en 
   - **Granadas y molotov:** pestaña EXPLOSIVOS, hasta 4 de cada. Botones a la derecha (teclas G y F). Se lanzan al zombi visible con más compañía (en manual, hacia donde apuntas). La granada estalla a los 1,25 s; el molotov deja un charco de fuego 6 s. No hacen daño al jugador.
   - Zombis ardiendo: pierden 11 de vida por segundo.
 
+- **Defensas y zonas** (2026-11-15, `src/defensas.js` y `src/supervivientes.js`; números en `TORRETAS`, `FOCOS`, `TRAMPAS`, `SUPERVIVIENTES` y `ZONAS`):
+  - **Torretas** (pestaña DEFENSAS): hasta 4 sobre el muro (tramos ±3 y ±6), cada una más cara. Disparan solas a los zombis de fuera; 150 balas cada una, se rellenan en la tienda. Si su tramo cae, se apagan hasta repararlo.
+  - **Focos**: cuatro en el muro; alumbran por delante y los zombis deslumbrados van al 72 % de velocidad.
+  - **Trampas** (pestaña EQUIPO, botones a la izquierda, teclas Z, X y C): se dejan a tus pies, solo fuera de la base. Mina (estalla al pisarla), barril explosivo (estalla al dispararle, con el fuego o con otra explosión; deja fuego) y cepo (atrapa 3,5 s y hiere; 4 usos).
+  - **Supervivientes**: desde la ronda 2, a veces aparece uno atrapado fuera pidiendo ayuda (flecha en el borde de la pantalla). Si llegas hasta él te sigue y dispara; dentro de la base sube al muro y defiende. Los zombis van a por el que tengan más cerca. Hasta 4.
+  - **Zonas** (pestaña ZONAS): enfermería (te cura dentro de la base), taller (repara el 30 % del muro y recarga torretas tras cada ronda), armería (un lote de munición de cada arma tras cada ronda).
+  - El chaleco pasa a la pestaña CURACIÓN.
+
 ## Números (src/config.js)
 Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 

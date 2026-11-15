@@ -1,5 +1,5 @@
 // Service worker: primero la red (siempre la última versión) y, sin conexión, la copia guardada.
-const CACHE = "horda-pixel-v20";
+const CACHE = "horda-pixel-v21";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {

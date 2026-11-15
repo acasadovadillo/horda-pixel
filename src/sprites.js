@@ -37,7 +37,8 @@ export function teñida(img, color) {
 const OPCIONALES = ["muro", "porton", "alambre", "tienda", "iconos_tienda",
   "bate", "machete", "francotirador", "ballesta", "lanzallamas",
   "brazos_bate", "brazos_machete", "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas",
-  "proyectiles", "fuego", "explosion"];
+  "proyectiles", "fuego", "explosion",
+  "torreta", "foco", "mina", "barril_explosivo", "cepo", "enfermeria", "taller", "armeria"];
 const BRAZOS = ["brazos_pistola", "brazos_subfusil", "brazos_escopeta", "brazos_bate", "brazos_machete",
   "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas"];
 
@@ -50,6 +51,7 @@ export async function cargarSprites(base = "assets/") {
     await cargarUno(base, n);
   }));
   await prepararVariantes(base);
+  prepararSupervivientes();
   for (const n of ["palotes", "cifras_sangre"]) S[n].blanca = teñida(S[n].img, "#f2ece4");
   for (const n of ["jugador", "zombi", "zombi_b", "zombi_c", "corredor", ...BRAZOS]) {
     if (S[n]) S[n].blanca = teñida(S[n].img, "#ffffff");
@@ -90,6 +92,27 @@ async function prepararVariantes(base) {
     const d = datos[n] || { ojo: null, variantes: [{}] };
     S[n].variantes = d.variantes.map((cambios) => recolorear(S[n].img, cambios, d.ojo));
   }
+}
+
+// Supervivientes: el mismo dibujo que el jugador con otra chaqueta, otro pantalón, otro pelo y otra piel.
+const RAMPAS = {
+  chaqueta: ["1b2430", "2a3a4d", "3b526b", "52708c", "7391ab"],
+  caqui: ["2a231b", "40362a", "5a4c3a", "77664f", "958463"],
+  pelo: ["1c1512", "2e221b", "45342a", "5e4a3a"],
+  piel: ["4a2f28", "7a4e3c", "a36f55", "c4937a", "deb89e"],
+};
+const ROPA_SUPERVIVIENTES = [
+  { chaqueta: ["1f2416", "323a22", "4a5432", "66713f", "858f55"], caqui: ["1a2030", "28324a", "3a4866", "526285", "6a7ba0"], pelo: ["4a3a1e", "6e5a30", "917a45", "b09a5e"] },
+  { chaqueta: ["2e1814", "4a2620", "6b3a2e", "8a5340", "a8705a"], caqui: ["17171c", "25252c", "35353e", "4a4954", "5e5d68"], pelo: ["0f0e10", "1c1a1d", "2c2a2e", "3e3b40"], piel: ["2e1a14", "4f3022", "6b4330", "875a40", "a37658"] },
+  { chaqueta: ["33290f", "54441c", "78632c", "9c8444", "b39c5a"], caqui: ["2b2c2f", "414348", "5a5d62", "777a7e", "94979a"], pelo: ["3d1a10", "63301c", "8a4a2a", "a8663d"] },
+  { chaqueta: ["3a3a38", "5c5a52", "85837a", "aeab9f", "d1cec0"], caqui: ["2a2018", "40301f", "594430", "765c40", "8f7350"], pelo: ["4a4a48", "6e6e6a", "93938d", "b3b2aa"], piel: ["5c3b30", "8a5c48", "b5836a", "d4a68e", "ecc8b0"] },
+];
+function prepararSupervivientes() {
+  S.supervivientes = ROPA_SUPERVIVIENTES.map((v) => {
+    const cambios = {};
+    for (const [rampa, dest] of Object.entries(v)) RAMPAS[rampa].forEach((h, i) => { cambios[h] = dest[Math.min(i, dest.length - 1)]; });
+    return { cuerpo: recolorear(S.jugador.img, cambios, null).img, brazos: recolorear(S.brazos_pistola.img, cambios, null).img };
+  });
 }
 
 function recolorear(img, cambios, ojo) {

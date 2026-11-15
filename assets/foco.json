@@ -1,0 +1,34 @@
+{ "frames": [
+   {
+    "filename": "foco 0.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 16, "h": 24 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 24 },
+    "sourceSize": { "w": 16, "h": 24 },
+    "duration": 100
+   },
+   {
+    "filename": "foco 1.aseprite",
+    "frame": { "x": 16, "y": 0, "w": 16, "h": 24 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 24 },
+    "sourceSize": { "w": 16, "h": 24 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18.6-x64",
+  "image": "foco.png",
+  "format": "RGBA8888",
+  "size": { "w": 32, "h": 24 },
+  "scale": "1",
+  "frameTags": [
+  ],
+  "slices": [
+   { "name": "base", "keys": [{ "frame": 0, "bounds": {"x": 8, "y": 23, "w": 1, "h": 1 } }] }
+  ]
+ }
+}

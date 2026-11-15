@@ -1,4 +1,4 @@
--- iconos_tienda (24x24, 19 fotogramas): iconos de las tarjetas de la tienda de la base.
+-- iconos_tienda (24x24, 28 fotogramas): iconos de las tarjetas de la tienda de la base.
 -- Se ven sobre un panel oscuro (#26252e / #34363d). Luz arriba a la izquierda, contorno de 1 px
 -- (tono oscuro del propio material arriba a la izquierda, tinta abajo a la derecha).
 -- Cada pieza se dibuja en su propia capa y se perfila antes de pegarla: así las piezas que se
@@ -735,6 +735,126 @@ iconos[19] = function(img)
     L.px(t, 12, 0, FUEGO[3]); L.rect(t, 11, 1, 2, 1, FUEGO[3]); L.px(t, 13, 1, FUEGO[2])
     L.rect(t, 10, 2, 4, 1, FUEGO[4]); L.px(t, 14, 2, FUEGO[2]); L.px(t, 9, 2, FUEGO[2])
     L.px(t, 11, 2, FUEGO[5])
+  end, true)
+end
+
+
+---------------------------------------------------------------- defensas de la base (2026-11-15)
+local SE2 = L.rampa("senal")
+local LONA = rampa({ "3d3b33", "5c5a4c", "7d7a66", "9c9880", "b5b097" })
+
+-- 19. Torreta: ametralladora sobre trípode.
+iconos[20] = function(img)
+  capa(img, function(t)                          -- trípode
+    for k = 0, 5 do L.px(t, 7 - k, 16 + k, MET[3]); L.px(t, 13 + k, 16 + k, MET[3]); L.px(t, 10, 16 + k, MET[4]) end
+  end)
+  capa(img, function(t)                          -- cuerpo
+    caja(t, 4, 9, 13, 7, OLIVA, 3)
+    L.rect(t, 5, 10, 11, 1, OLIVA[5])
+  end)
+  capa(img, function(t) caja(t, 17, 11, 6, 3, MET, 4) end)            -- cañón
+  capa(img, function(t) caja(t, 7, 15, 6, 4, OLIVA, 2) end)           -- caja de balas
+  capa(img, function(t) caja(t, 1, 10, 3, 4, MET, 3) end)             -- culata
+end
+
+-- 20. Munición de torretas: cinta de balas en zigzag.
+iconos[21] = function(img)
+  capa(img, function(t)
+    for i = 0, 5 do
+      local x, y = 2 + i * 3, 4 + i * 3
+      balaTumbada(t, x, y + 6, x + 7, y, 1.3, 0.35)
+    end
+  end)
+  capa(img, function(t) for i = 0, 5 do local x, y = 4 + i * 3, 7 + i * 3; L.px(t, x, y, MET[4]); L.px(t, x + 1, y, MET[3]) end end, true)
+end
+
+-- 21. Focos: foco grande encendido con su haz.
+iconos[22] = function(img)
+  capa(img, function(t)
+    for k = 0, 5 do L.rect(t, 13 + k, 6 - math.floor(k / 2), 1, 9 + k, FUEGO[5]) end    -- haz
+  end, true)
+  capa(img, function(t)
+    caja(t, 4, 6, 10, 9, MET, 3)
+    L.rect(t, 13, 7, 2, 7, FUEGO[5]); L.rect(t, 13, 8, 1, 5, FUEGO[4])
+    for _, y in ipairs({ 8, 10, 12 }) do L.rect(t, 5, y, 7, 1, MET[2]) end
+  end)
+  capa(img, function(t) caja(t, 8, 15, 2, 6, MET, 3); caja(t, 5, 20, 8, 2, MET, 3) end)
+end
+
+-- 22. Mina: disco verde con placa de presión y luz roja.
+iconos[23] = function(img)
+  capa(img, function(t)
+    barra(t, 3, 14, 21, 14, 5, function(u, sp) return tono(OLIVA, sp, true) end, true)
+    L.rect(t, 9, 11, 6, 3, MET[4]); L.rect(t, 9, 11, 6, 1, MET[6])
+  end)
+  capa(img, function(t) L.rect(t, 17, 13, 2, 2, ROJO[3]); L.px(t, 17, 13, ROJO[4]) end, true)
+end
+
+-- 23. Barril explosivo: rojo con franja amarilla.
+iconos[24] = function(img)
+  local PI2 = L.rampa("pintura")
+  capa(img, function(t)
+    caja(t, 6, 3, 12, 19, PI2, 3)
+    L.rect(t, 7, 4, 1, 17, PI2[5]); L.rect(t, 8, 4, 1, 17, PI2[4])
+    for _, y in ipairs({ 7, 17 }) do L.rect(t, 6, y, 12, 1, PI2[1]) end
+    L.rect(t, 7, 10, 10, 4, SE2[3]); L.rect(t, 7, 10, 10, 1, SE2[4])
+    for k = 0, 4 do L.px(t, 7 + k * 2, 11 + (k % 2), TINTA); L.px(t, 8 + k * 2, 12 + (k % 2), TINTA) end
+  end)
+end
+
+-- 24. Cepo: mandíbulas de acero abiertas con dientes.
+iconos[25] = function(img)
+  capa(img, function(t)
+    arco(t, 12, 13, 6.5, 8.2, 180, 360)
+    for y = 0, W - 1 do for x = 0, W - 1 do
+      local c = L.get(t, x, y)
+      if c == VERDE[3] then L.px(t, x, y, MET[4]) elseif c == VERDE[4] then L.px(t, x, y, MET[5]) elseif c == VERDE[2] then L.px(t, x, y, MET[3]) end
+    end end
+    for x = 6, 18, 3 do L.px(t, x, 7, MET[6]); L.px(t, x, 8, MET[5]) end
+    caja(t, 3, 14, 18, 4, MET, 3)
+    L.rect(t, 9, 13, 6, 2, OXIDO and OXIDO[3] or MET[2])
+  end)
+end
+
+-- 25. Enfermería: tienda de lona con cruz roja.
+iconos[26] = function(img)
+  capa(img, function(t)
+    L.poligono(t, { { 7, 4 }, { 17, 4 }, { 22, 15 }, { 2, 15 } }, LONA[4])
+    L.rect(t, 7, 4, 10, 1, LONA[5])
+    L.rect(t, 3, 15, 18, 6, LONA[3]); L.rect(t, 3, 15, 18, 1, LONA[2])
+    L.rect(t, 10, 16, 4, 5, TINTA)
+    L.rect(t, 10, 6, 4, 8, ROJO[2]); L.rect(t, 8, 8, 8, 4, ROJO[2]); L.rect(t, 10, 6, 4, 1, ROJO[3])
+  end)
+end
+
+-- 26. Taller: banco con sierra y martillo.
+iconos[27] = function(img)
+  capa(img, function(t)                          -- banco
+    caja(t, 2, 13, 20, 3, MAD, 3)
+    L.rect(t, 4, 16, 2, 6, MAD[2]); L.rect(t, 18, 16, 2, 6, MAD[2])
+  end)
+  capa(img, function(t)                          -- sierra
+    L.poligono(t, { { 4, 6 }, { 15, 4 }, { 15, 10 }, { 4, 10 } }, MET[5])
+    for x = 4, 15, 2 do L.px(t, x, 11, MET[4]) end
+    L.rect(t, 15, 4, 3, 6, MAD[4])
+  end)
+  capa(img, function(t)                          -- martillo
+    L.rect(t, 18, 3, 2, 9, MAD[4]); L.rect(t, 15, 2, 7, 3, MET[4]); L.rect(t, 15, 2, 7, 1, MET[6])
+  end)
+end
+
+-- 27. Armería: armero con tres fusiles.
+iconos[28] = function(img)
+  capa(img, function(t)
+    caja(t, 3, 4, 18, 17, OLIVA, 3)
+    L.rect(t, 5, 6, 14, 13, TINTA)
+  end)
+  capa(img, function(t)
+    for k = 0, 2 do
+      local x = 7 + k * 4
+      L.rect(t, x, 6, 2, 8, MET[4]); L.px(t, x, 6, MET[6])
+      L.rect(t, x, 13, 2, 5, MAD[4]); L.px(t, x, 13, MAD[5])
+    end
   end, true)
 end
 

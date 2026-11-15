@@ -1,0 +1,25 @@
+{ "frames": [
+   {
+    "filename": "barril_explosivo.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 16, "h": 22 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 22 },
+    "sourceSize": { "w": 16, "h": 22 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18.6-x64",
+  "image": "barril_explosivo.png",
+  "format": "RGBA8888",
+  "size": { "w": 16, "h": 22 },
+  "scale": "1",
+  "frameTags": [
+  ],
+  "slices": [
+   { "name": "base", "keys": [{ "frame": 0, "bounds": {"x": 8, "y": 21, "w": 1, "h": 1 } }] }
+  ]
+ }
+}

@@ -275,6 +275,9 @@ const SONIDOS = {
     tono("triangle", 2600, 1800, 0.12, 0.08);
     tono("triangle", 3300, 2400, 0.1, 0.06, 0.03);
   },
+  torreta() { golpeDeRuido(0.4, 0.06, "bandpass", 1700, 0.8); tono("square", 130, 60, 0.12, 0.05); },
+  poner() { golpeDeRuido(0.3, 0.05, "lowpass", 900); tono("square", 520, 520, 0.08, 0.04, 0.05); },
+  cepo() { golpeDeRuido(0.7, 0.08, "highpass", 1800, 0.8); tono("triangle", 300, 120, 0.4, 0.1); },
   prender() { golpeDeRuido(0.5, 0.6, "lowpass", 700, 0.7, 0.05); },
 };
 

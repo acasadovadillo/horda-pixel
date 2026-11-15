@@ -156,3 +156,32 @@ export const PRECIOS = {
   reforzar: [90, 180],            // pasar a chapa, pasar a hormigón
   alambre: 70,
 };
+
+// ------------------------------------------------------------------ defensas de la base (tanda 2)
+// Torretas montadas sobre el muro: disparan solas a los zombis de fuera. Se compran de una en una
+// (cada una más cara) y van en estos tramos (0 = portón). Si su tramo cae, dejan de disparar hasta repararlo.
+export const TORRETAS = {
+  precios: [120, 160, 200, 240], tramos: [-3, 3, -6, 6],
+  municion: 150,                  // balas de cada una; se rellenan en la tienda (1 moneda por cada 10)
+  dano: 7, cadencia: 4, alcance: 170, velocidadBala: 430, dispersion: 4, empuje: 2.5, critico: 0.05,
+};
+// Focos en el muro: alumbran lo de delante y deslumbran a los zombis (van más despacio).
+export const FOCOS = { precio: 80, tramos: [-5, -1, 1, 5], lentitud: 0.72, fondo: 120, ancho: 46 };
+// Trampas que llevas encima y dejas a tus pies con su botón (a la izquierda).
+export const TRAMPAS = {
+  mina: { max: 5, precio: 15, radio: 36, dano: 95, activa: 1, toque: 9 },
+  barril: { max: 3, precio: 20, radio: 54, dano: 130 },       // estalla al dispararle o al quemarse
+  cepo: { max: 3, precio: 25, dano: 25, sujeta: 3.5, rearme: 3, usos: 4, toque: 8 },
+};
+// Supervivientes: alguno aparece atrapado fuera; si llegas hasta él te sigue, y dentro de la base
+// sube al muro a disparar.
+export const SUPERVIVIENTES = {
+  max: 4, probabilidad: 0.45, desdeRonda: 2, vida: 60, velocidad: 92,
+  dano: 9, cadencia: 1.6, alcance: 165, velocidadBala: 420, puestos: [-2, 2, -5, 5],
+};
+// Zonas de la base: se construyen una vez.
+export const ZONAS = {
+  enfermeria: { precio: 120, cura: 1.5 },                         // vida por segundo mientras estás dentro de la base
+  taller: { precio: 120, repara: 0.3, municionTorretas: 50 },     // al acabar cada ronda: repara el 30 % de cada tramo
+  armeria: { precio: 150 },                                       // al acabar cada ronda: un lote de munición de cada arma
+};

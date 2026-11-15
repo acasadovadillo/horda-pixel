@@ -1,12 +1,13 @@
 // Tienda de la base: se abre entre rondas, dentro de la base. El juego queda parado mientras compras.
 // Pestañas: armas, munición, curación, mejoras y defensas. Todo se paga con las monedas de los zombis.
 import { S, texto, anchoTexto, dibujar } from "./sprites.js";
-import { ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, JUGADOR, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
+import { ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, JUGADOR, BASE, MUNICION, MEJORAS, PRECIOS, TORRETAS, FOCOS, TRAMPAS, ZONAS } from "./config.js";
+import { precioTorreta, comprarTorreta, faltaMunicionTorretas, rellenarTorretas, construirZona } from "./defensas.js";
 import { faltaMuro, repararMuro, reforzarMuro } from "./base.js";
 import { sonar } from "./audio.js";
 import { t } from "./idioma.js";
 
-const PESTANAS = ["armas", "municion", "explosivos", "curacion", "mejoras", "defensas"];
+const PESTANAS = ["armas", "municion", "equipo", "curacion", "mejoras", "defensas", "base"];
 const ARMAS_ORDEN = ARMAS_FUEGO;
 const EN_VENTA = ["machete", "subfusil", "escopeta", "francotirador", "ballesta", "lanzallamas"];
 
@@ -14,7 +15,8 @@ const EN_VENTA = ["machete", "subfusil", "escopeta", "francotirador", "ballesta"
 const IC = {
   municion: { pistola: 0, subfusil: 1, escopeta: 2, francotirador: 14, ballesta: 15, lanzallamas: 16 },
   curar: 3, curarTodo: 4, botiquin: 5, chaleco: 6, dano: 7, cargador: 8, recarga: 9, reparar: 10, reforzar: 11, alambre: 12,
-  granada: 17, molotov: 18,
+  granada: 17, molotov: 18, torreta: 19, municionTorretas: 20, focos: 21, mina: 22, barril: 23, cepo: 24,
+  enfermeria: 25, taller: 26, armeria: 27,
 };
 const UNIDAD = { escopeta: "cartuchos", ballesta: "virotes", lanzallamas: "gasolina" };
 
@@ -47,8 +49,9 @@ function articulos(juego) {
       };
     });
   }
-  if (p === "explosivos") {
-    return ["granada", "molotov"].map((n) => {
+  if (p === "equipo") {
+    // Granadas y molotov (se lanzan) y trampas (se dejan en el suelo)
+    const lanzar = ["granada", "molotov"].map((n) => {
       const L = LANZABLES[n], lleno = j.lanzables[n] >= L.max;
       return {
         icono: IC[n], nombre: t(n), detalle: t("detalle_" + n) + ", " + j.lanzables[n] + "/" + L.max,
@@ -56,6 +59,22 @@ function articulos(juego) {
         comprar: () => { j.lanzables[n]++; },
       };
     });
+    const poner = ["mina", "barril", "cepo"].map((n) => {
+      const T = TRAMPAS[n], lleno = j.trampas[n] >= T.max;
+      return {
+        icono: IC[n], nombre: t(n), detalle: t("detalle_" + n) + ", " + j.trampas[n] + "/" + T.max,
+        precio: lleno ? null : T.precio, nota: lleno ? t("lleno") : null,
+        comprar: () => { j.trampas[n]++; },
+      };
+    });
+    return [...lanzar, ...poner];
+  }
+  if (p === "base") {
+    return ["enfermeria", "taller", "armeria"].map((n) => ({
+      icono: IC[n], nombre: t(n), detalle: t("detalle_" + n),
+      precio: b.zonas[n] ? null : ZONAS[n].precio, nota: b.zonas[n] ? t("construida") : null,
+      comprar: () => construirZona(b, juego.mapa, n),
+    }));
   }
   if (p === "curacion") {
     const falta = JUGADOR.vida - j.vida;
@@ -68,6 +87,9 @@ function articulos(juego) {
       { icono: IC.botiquin, nombre: t("botiquin"), detalle: t("detalle_botiquin") + ", " + j.botiquines + "/" + BASE.botiquinesMax,
         precio: j.botiquines < BASE.botiquinesMax ? PRECIOS.botiquin : null, nota: j.botiquines < BASE.botiquinesMax ? null : t("lleno"),
         comprar: () => { j.botiquines++; } },
+      { icono: IC.chaleco, nombre: t("chaleco"), detalle: t("detalle_chaleco") + ", " + Math.round(j.chaleco) + "/" + BASE.chaleco,
+        precio: j.chaleco >= BASE.chaleco ? null : j.tuvoChaleco ? PRECIOS.rellenarChaleco : PRECIOS.chaleco, nota: j.chaleco >= BASE.chaleco ? t("lleno") : null,
+        comprar: () => { j.chaleco = BASE.chaleco; j.tuvoChaleco = true; } },
     ];
   }
   if (p === "mejoras") {
@@ -117,9 +139,15 @@ function articulos(juego) {
       comprar: () => reforzarMuro(b) },
     { icono: IC.alambre, nombre: t("alambre"), detalle: t("detalle_alambre"), precio: b.alambre ? null : PRECIOS.alambre, nota: b.alambre ? t("puesto") : null,
       comprar: () => { b.alambre = true; } },
-    { icono: IC.chaleco, nombre: t("chaleco"), detalle: t("detalle_chaleco") + ", " + Math.round(j.chaleco) + "/" + BASE.chaleco,
-      precio: j.chaleco >= BASE.chaleco ? null : j.tuvoChaleco ? PRECIOS.rellenarChaleco : PRECIOS.chaleco, nota: j.chaleco >= BASE.chaleco ? t("lleno") : null,
-      comprar: () => { j.chaleco = BASE.chaleco; j.tuvoChaleco = true; } },
+    { icono: IC.torreta, nombre: t("torreta") + " " + (b.torretas.length + (precioTorreta(b) ? 1 : 0)) + "/" + TORRETAS.precios.length, detalle: t("detalle_torreta"),
+      precio: precioTorreta(b), nota: precioTorreta(b) ? null : t("maximo"),
+      comprar: () => comprarTorreta(b) },
+    { icono: IC.municionTorretas, nombre: t("municionTorretas"), detalle: t("detalle_municionTorretas"),
+      precio: !b.torretas.length || faltaMunicionTorretas(b) <= 0 ? null : Math.max(1, Math.ceil(faltaMunicionTorretas(b) / 10)),
+      nota: !b.torretas.length ? t("sinTorretas") : faltaMunicionTorretas(b) <= 0 ? t("lleno") : null,
+      comprar: () => rellenarTorretas(b) },
+    { icono: IC.focos, nombre: t("focos"), detalle: t("detalle_focos"), precio: b.focos ? null : FOCOS.precio, nota: b.focos ? t("puesto") : null,
+      comprar: () => { b.focos = true; } },
   ];
 }
 

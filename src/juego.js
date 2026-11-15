@@ -1,5 +1,5 @@
 // Partida: jugador, zombis, balas, botín, oleadas, cámara, luces, interfaz.
-import { PANTALLA, JUGADOR, ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, FUEGO, ZOMBIS, OLEADAS, BOTIN, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
+import { PANTALLA, JUGADOR, ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, FUEGO, FOCOS, ZOMBIS, OLEADAS, BOTIN, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
 import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, leerApuntado, RADIO_STICK } from "./entrada.js";
@@ -8,6 +8,8 @@ import { pantallaCompletaHorizontal } from "./pantalla.js";
 import { crearRagdoll, moverRagdoll, dibujarRagdoll, asentado } from "./ragdoll.js";
 import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo, dibujarAlambre, dibujarTienda } from "./base.js";
 import { pantallaTienda } from "./tienda.js";
+import { crearDefensas, moverDefensas, deslumbrado, ponerTrampa, cadena, balaABarril, finDeRonda, cosasDefensas, dibujarTrampasSuelo, lucesDefensas } from "./defensas.js";
+import { quizaSuperviviente, moverSupervivientes, herirSuperviviente, cosasSupervivientes, marcasSupervivientes, flechaSuperviviente } from "./supervivientes.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
 const ORDEN_ARMAS = ARMAS_FUEGO;               // armas de fuego, en el orden de la barra
@@ -62,6 +64,9 @@ export class Juego {
     this.mapa.usado = true;
     const s = this.mapa.salida;
     this.base = crearBase(this.mapa);
+    crearDefensas(this.base, this.mapa);
+    this.trampas = [];            // minas, barriles y cepos puestos en el suelo
+    this.supervivientes = [];
     this.jugador = {
       x: s.x, y: s.y, vida: JUGADOR.vida, arma: "pistola",
       // La Glock y el bate al empezar; lo demás se compra en la tienda de la base
@@ -71,6 +76,7 @@ export class Juego {
       reserva: Object.fromEntries(ARMAS_FUEGO.map((n) => [n, n === "pistola" ? MUNICION.pistola.inicial : 0])),
       mejoras: Object.fromEntries(TODAS.map((a) => [a, { dano: 0, cargador: 0, recarga: 0 }])),
       lanzables: { granada: 0, molotov: 0 },
+      trampas: { mina: 0, barril: 0, cepo: 0 },
       botiquines: 0, chaleco: 0, golpeT: 0, golpeDur: 1, tLanzar: 0,
       recarga: 0, espera: 0, angulo: -Math.PI / 2, voltear: false, anim: 0, andando: false,
       golpe: 0, muerto: 0, sinBlanco: 0, tDisparo: 9,
@@ -97,6 +103,9 @@ export class Juego {
     if (/^Digit[1-7]$/.test(c)) this.cambiarArma(this.casillasVisibles()[+c.slice(5) - 1]);
     if (c === "KeyG") this.lanzar("granada");
     if (c === "KeyF") this.lanzar("molotov");
+    if (c === "KeyZ") ponerTrampa(this, "mina");
+    if (c === "KeyX") ponerTrampa(this, "barril");
+    if (c === "KeyC") ponerTrampa(this, "cepo");
     if (c === "KeyR") this.empezarRecarga();
     if (c === "KeyH") this.usarBotiquin();
     if (c === "KeyT" && this.puedeComprar()) this.abrirTienda();
@@ -226,6 +235,8 @@ export class Juego {
     this.moverBalas(dt);
     this.moverLlamas(dt);
     this.moverLanzados(dt);
+    moverDefensas(this, dt);
+    moverSupervivientes(this, dt);
     this.moverBotin(dt);
     this.moverEfectos(dt);
     this.oleadas(dt);
@@ -527,8 +538,7 @@ export class Juego {
     this.explosiones = this.explosiones.filter((e) => e.t < 0.6);
   }
 
-  explotar(x, y) {
-    const L = LANZABLES.granada;
+  explotar(x, y, L = LANZABLES.granada) {
     this.explosiones.push({ x, y, t: 0 });
     this.sacudida = Math.max(this.sacudida, 7);
     sonar("explosion");
@@ -550,11 +560,12 @@ export class Juego {
         color: ["#3a2c23", "#594430", "#26252e", "#ffc93a"][i % 4], vida: 2.5 });
     }
     this.marcaQuemada(x, y, 16);
+    cadena(this, x, y, L.radio + 6);
   }
 
-  romperMolotov(x, y) {
+  romperMolotov(x, y, sinCristal = false) {
     const L = LANZABLES.molotov;
-    sonar("cristal");
+    if (!sinCristal) sonar("cristal");
     sonar("prender");
     // Llamas repartidas por el charco (fijas: cada una con su momento de la animación)
     const llamas = [];
@@ -650,14 +661,17 @@ export class Juego {
         if (Math.random() < dt * 10) this.particulas.push({ x: z.x + rnd(-5, 5), y: z.y, z: rnd(14, 30), vx: rnd(-8, 8), vy: 0, vz: rnd(20, 50), color: Math.random() < 0.5 ? "#ffc93a" : "#f08a1c", vida: 0.5, chispa: true });
         if (z.vida <= 0) { this.matarZombi(z, { x: 0, y: -1 }, 0.5); continue; }
       }
+      if (z.atrapado > 0) z.atrapado -= dt;   // pillado en un cepo
       z.gruñe -= dt;
       if (z.aparece > 0) { z.aparece -= dt; continue; }
       if (z.gruñe <= 0) {
         z.gruñe = rnd(4, 10);
         if (this.enPantalla(z.x, z.y, 0)) sonar("gruñido", 0.6);
       }
-      const dx = j.x - z.x, dy = j.y - z.y, d = Math.hypot(dx, dy) || 1;
-      z.ang = Math.atan2(dy, dx);                 // siempre miran al jugador
+      // Van a por el que tengan más cerca: el jugador o un superviviente
+      const p = this.presaDe(z), vivo = p !== j || !j.muerto;
+      const dx = p.x - z.x, dy = p.y - z.y, d = Math.hypot(dx, dy) || 1;
+      z.ang = Math.atan2(dy, dx);
 
       // Atacar: el golpe llega al empezar el segundo fotograma de la animación
       if (z.ataque > 0) {
@@ -668,7 +682,10 @@ export class Juego {
         const golpeEn = total - z.spr.frames[primero(z.spr, tg)].dur;
         if (antes > golpeEn && z.ataque <= golpeEn) {
           if (z.objetivo) this.golpearMuro(z.objetivo, z.def.dano);
-          else if (d <= z.def.alcance + 9 && !j.muerto) this.herirJugador(z.def.dano, z);
+          else if (d <= z.def.alcance + 9 && vivo) {
+            if (p === j) this.herirJugador(z.def.dano, z);
+            else herirSuperviviente(this, p, z.def.dano, z);
+          }
         }
         if (z.objetivo) z.ang = z.objetivo.y > z.y ? Math.PI / 2 : -Math.PI / 2;
         if (z.ataque <= 0) z.espera = Math.max(0, z.def.cadencia - total);
@@ -676,12 +693,13 @@ export class Juego {
       }
       z.espera = Math.max(0, z.espera - dt);
       z.objetivo = null;
-      if (d <= z.def.alcance && !j.muerto) {
+      if (d <= z.def.alcance && vivo) {
         if (z.espera <= 0) { z.ataque = duracion(z.spr, orientar(z.spr, "atacar", z.ang).tag); sonar("zarpazo", 0.05); }
         continue;
       }
       // El muro en medio: si toca un tramo en pie, lo golpea
-      const otroLado = !j.muerto && dentro(this.base, j.y) !== dentro(this.base, z.y);
+      if (z.atrapado > 0) continue;
+      const otroLado = vivo && dentro(this.base, p.y) !== dentro(this.base, z.y);
       if (otroLado) {
         const tr = tramoTocado(this.base, z, z.def.radio);
         if (tr) {
@@ -694,19 +712,19 @@ export class Juego {
         }
       }
       // Andar hacia el jugador (o hacia un hueco del muro si está al otro lado); si se atasca, rodea el obstáculo
-      let mx = j.x, my = j.y;
+      let mx = p.x, my = p.y;
       if (otroLado) {
         const h = huecoCercano(this.base, z.x);
-        if (h) { mx = h.x; my = h.y + (dentro(this.base, z.y) ? -14 : 14); if (Math.abs(z.x - h.x) < 14 && Math.abs(z.y - h.y) < 16) { mx = j.x; my = j.y; } }
+        if (h) { mx = h.x; my = h.y + (dentro(this.base, z.y) ? -14 : 14); if (Math.abs(z.x - h.x) < 14 && Math.abs(z.y - h.y) < 16) { mx = p.x; my = p.y; } }
         else {
           // Sin hueco: van al tramo de muro que tiene delante el jugador (cada uno algo desviado), no al más cercano
           z.desvioMuro ??= rnd(-70, 70);
-          mx = j.x + z.desvioMuro; my = this.base.y + (dentro(this.base, z.y) ? 12 : -12);
+          mx = p.x + z.desvioMuro; my = this.base.y + (dentro(this.base, z.y) ? 12 : -12);
         }
       }
       const ex = mx - z.x, ey = my - z.y, ed = Math.hypot(ex, ey) || 1;
       let ux = ex / ed, uy = ey / ed;
-      if (j.muerto) { ux = -ux * 0.2; uy = -uy * 0.2; }
+      if (!vivo) { ux = -ux * 0.2; uy = -uy * 0.2; }
       if (z.desvio > 0) {
         z.desvio -= dt;
         const px = -uy * z.lado, py = ux * z.lado;
@@ -716,7 +734,7 @@ export class Juego {
       const ox = z.x, oy = z.y;
       // Alambre de espino delante del muro: frena y hiere
       const enAlambre = this.base.alambre && z.y > this.base.y - 50 && z.y < this.base.y - 8;
-      const vel = z.vel * (enAlambre ? BASE.alambre.lentitud : 1);
+      const vel = z.vel * (enAlambre ? BASE.alambre.lentitud : 1) * (deslumbrado(this.base, z) ? FOCOS.lentitud : 1);
       if (enAlambre) {
         z.vida -= BASE.alambre.dano * dt;
         if (Math.random() < dt * 3) this.gota(z.x, z.y, rnd(2, 12), rnd(-20, 20), rnd(-8, 8), rnd(10, 40));
@@ -747,6 +765,18 @@ export class Juego {
     }
     // Los cadáveres se desvanecen
     this.zombis = this.zombis.filter((z) => !z.muerto);
+  }
+
+  // A quién va un zombi: al jugador, salvo que tenga un superviviente bastante más cerca.
+  presaDe(z) {
+    const j = this.jugador;
+    let p = j, md = j.muerto ? Infinity : Math.hypot(j.x - z.x, j.y - z.y) - 12;
+    for (const s of this.supervivientes) {
+      if (s.muerto) continue;
+      const d = Math.hypot(s.x - z.x, s.y - z.y);
+      if (d < md) { md = d; p = s; }
+    }
+    return p;
   }
 
   // Un zombi golpea un tramo del muro.
@@ -827,6 +857,7 @@ export class Juego {
       b.x += b.vx * dt; b.y += b.vy * dt;
       b.vida -= dt;
       if (b.vida <= 0) { if (b.flecha) this.soltarFlecha(b.x, b.y + b.alto, b.vx); continue; }
+      if (balaABarril(this, b)) { b.vida = 0; continue; }
       let mejor = null, mt = 2, mq = null;
       for (const z of this.zombis) {
         if (z.muerto || z.aparece > 0.2 || b.tocados?.has(z)) continue;
@@ -856,7 +887,7 @@ export class Juego {
   }
 
   impacto(z, b, x, y) {
-    const a = this.arma(b.arma);
+    const a = b.def || this.arma(b.arma);
     const critico = Math.random() < a.critico;
     const dano = a.dano * (critico ? 2 : 1);
     z.vida -= dano;
@@ -992,6 +1023,7 @@ export class Juego {
       if (o.descanso <= 0) {
         o.n++;
         o.porSalir = OLEADAS.zombisBase + OLEADAS.zombisPorOleada * (o.n - 1);
+        quizaSuperviviente(this);
         o.t = 0.5;
         o.cartel = 2.2;
         o.superada = 0;
@@ -1015,6 +1047,7 @@ export class Juego {
       o.descanso = 0;
       o.superada = 2.5;
       for (const b of this.botin) if (b.tipo === "moneda" || (b.tipo === "flecha" && this.jugador.armas.ballesta)) b.iman = true;
+      finDeRonda(this);
     }
   }
 
@@ -1054,6 +1087,7 @@ export class Juego {
 
     // Alambre de espino en el suelo, por fuera del muro
     dibujarAlambre(g, this.base);
+    dibujarTrampasSuelo(this, g);
 
     // Sombras en el suelo
     g.fillStyle = "rgba(8,7,14,0.38)";
@@ -1071,6 +1105,8 @@ export class Juego {
     }
     for (const o of this.botin) if (this.enPantalla(o.x, o.y)) sombra(o.x, o.y, 4, 1.5);
     for (const o of this.lanzados) sombra(o.x, o.y, 3, 1.2);
+    for (const x of this.trampas) if (x.tipo === "barril") sombra(x.x + 2, x.y - 1, 8);
+    for (const sv of this.supervivientes) if (!sv.muerto) sombra(sv.x + 1, sv.y, 8);
 
     // Todo lo que está de pie, ordenado por la y de los pies
     const cosas = [];
@@ -1081,6 +1117,8 @@ export class Juego {
     for (const o of this.botin) cosas.push({ y: o.y - 0.5, f: () => this.dibujarBotin(g, o) });
     for (const o of this.lanzados) cosas.push({ y: o.y, f: () => this.dibujarLanzado(g, o) });
     for (const f of this.fuegos) cosas.push({ y: f.y - f.r * 0.6, f: () => this.dibujarFuego(g, f) });
+    cosasDefensas(this, g, cosas);
+    cosasSupervivientes(this, g, cosas);
     if (!j.ragdoll) cosas.push({ y: j.y, f: () => this.dibujarJugador(g) });
     for (const r of this.ragdolls) if (this.enPantalla(r.pts.P.x, r.y, 60)) cosas.push({ y: r.y, f: () => dibujarRagdoll(g, r) });
     cosas.sort((a, b) => a.y - b.y);
@@ -1154,6 +1192,7 @@ export class Juego {
     g.save();
     g.translate(-cx, -cy);
     this.dibujarOjos(g);
+    marcasSupervivientes(this, g);
     // Vida de los tramos del muro que están recibiendo golpes
     for (const tr of this.base.tramos) {
       tr.barra = Math.max(0, tr.barra - 1 / 60);
@@ -1218,6 +1257,7 @@ export class Juego {
     this.llamas.forEach((f, i) => { if (i % 3 === 0) foco(f.x, f.y, 34, 0.8, "255,170,70"); });
     for (const o of this.lanzados) if (o.tipo === "molotov") foco(o.x, o.y - o.z, 22, 0.8, "255,150,60");
     for (const e of this.explosiones) foco(e.x, e.y - 10, 150 * (1 - e.t / 0.6), 1, "255,190,90");
+    lucesDefensas(this, foco);
     g.drawImage(this.capaLuz, 0, 0);
     // Tinte cálido de las luces
     g.globalCompositeOperation = "lighter";
@@ -1505,6 +1545,21 @@ export class Juego {
         this.boton(bx2 - 4, yL - 3, bw2 + 8, bh + 6, () => this.lanzar(tipo));
         yL -= bh + 6;
       }
+      // Trampas: a la izquierda, encima del joystick; se dejan a tus pies
+      let yT = H - 132;
+      for (const [tipo, ic] of [["cepo", 24], ["barril", 23], ["mina", 22]]) {
+        const n = j.trampas[tipo];
+        if (n <= 0) continue;
+        const bw2 = 34, bh = 28, bx2 = 5;
+        g.fillStyle = "#0e0d12"; g.fillRect(bx2, yT, bw2, bh);
+        g.fillStyle = "#34363d"; g.fillRect(bx2 + 1, yT + 1, bw2 - 2, bh - 2);
+        g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(bx2 + 1, yT + 1, bw2 - 2, 2);
+        this.icono(g, ic, bx2 + 1, yT + 2, 24);
+        texto(g, String(n), bx2 + bw2 - 3, yT + bh - 11, "#ffffff", "der");
+        this.boton(bx2 - 4, yT - 3, bw2 + 8, bh + 6, () => ponerTrampa(this, tipo));
+        yT -= bh + 6;
+      }
+      flechaSuperviviente(this, g);
     }
     // Munición y recarga encima de las armas
     const a = this.arma(j.arma);
