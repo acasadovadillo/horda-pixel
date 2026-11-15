@@ -5,6 +5,7 @@ import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, leerApuntado, RADIO_STICK } from "./entrada.js";
 import { sonar, sonarRecarga, sonarCartucho, sonarCorredera, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
 import { pantallaCompletaHorizontal } from "./pantalla.js";
+import { crearRagdoll, moverRagdoll, dibujarRagdoll, asentado } from "./ragdoll.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
 const ORDEN_ARMAS = ["pistola", "subfusil", "escopeta"];
@@ -63,6 +64,8 @@ export class Juego {
     };
     this.zombis = []; this.balas = []; this.botin = []; this.flotantes = [];
     this.particulas = []; this.fogonazos = [];
+    this.cuerpoJugador = null;   // al morir, la cámara sigue al cuerpo
+    this.ragdolls = [];          // cuerpos cayendo y trozos volando (después se quedan pintados en el suelo)
     this.blanco = null;
     this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0, superada: 0 };
     this.stats = { bajas: 0, monedas: 0, tiempo: 0, disparos: 0, impactos: 0, dano: 0, recibido: 0 };
@@ -300,14 +303,7 @@ export class Juego {
     for (const z of this.zombis) {
       z.golpe = Math.max(0, z.golpe - dt);
       z.barra = Math.max(0, z.barra - dt);
-      if (z.muerto) {
-        z.muerto += dt;
-        if (!z.charco && z.muerto > 0.6) {
-          z.charco = true;
-          manchar(m.sueloCtx, z.x + (z.voltear ? -4 : 4), z.y - 2, rndInt(0, 3), 0.85);
-        }
-        continue;
-      }
+      if (z.muerto) continue;            // el cuerpo ya es un ragdoll
       z.anim += dt;
       z.gruñe -= dt;
       if (z.aparece > 0) { z.aparece -= dt; continue; }
@@ -325,7 +321,7 @@ export class Juego {
         const tg = orientar(z.spr, "atacar", z.ang).tag;
         const total = duracion(z.spr, tg);
         const golpeEn = total - z.spr.frames[primero(z.spr, tg)].dur;
-        if (antes > golpeEn && z.ataque <= golpeEn && d <= z.def.alcance + 9 && !j.muerto) this.herirJugador(z.def.dano);
+        if (antes > golpeEn && z.ataque <= golpeEn && d <= z.def.alcance + 9 && !j.muerto) this.herirJugador(z.def.dano, z);
         if (z.ataque <= 0) z.espera = Math.max(0, z.def.cadencia - total);
         continue;
       }
@@ -367,10 +363,10 @@ export class Juego {
       } else z.atasco = Math.max(0, z.atasco - dt);
     }
     // Los cadáveres se desvanecen
-    this.zombis = this.zombis.filter((z) => !z.muerto || z.muerto < 9);
+    this.zombis = this.zombis.filter((z) => !z.muerto);
   }
 
-  herirJugador(dano) {
+  herirJugador(dano, desde = null) {
     const j = this.jugador;
     j.vida = Math.max(0, j.vida - dano);
     j.golpe = 0.18;
@@ -381,11 +377,43 @@ export class Juego {
     sonar("herido", 0.08);
     vibrar(40);
     if (j.vida <= 0) {
+      this.ragdollJugador(desde);
       j.muerto = 0.0001;
       j.recarga = 0;
       sonar("muerte");
       vibrar([80, 60, 160]);
-      manchar(this.mapa.sueloCtx, j.x, j.y - 2, 0, 0.9);
+    }
+  }
+
+  // El jugador se desploma con los brazos y el arma; el golpe viene del zombi que lo mata.
+  ragdollJugador(desde) {
+    const j = this.jugador, spr = S.jugador, i = this.cuadroJugador();
+    const br = S["brazos_" + j.arma], geo = this.geometriaArma(), fb = br.frames[primero(br, "apuntar")];
+    // Los brazos con el arma, tal como se veían (volteados si apuntaba a la izquierda)
+    const c = document.createElement("canvas"); c.width = fb.w; c.height = fb.h;
+    const gc = c.getContext("2d");
+    if (geo.izq) { gc.translate(0, fb.h); gc.scale(1, -1); }
+    gc.drawImage(br.img, fb.x, fb.y, fb.w, fb.h, 0, 0, fb.w, fb.h);
+    const boca = punto(br, "boca", 0, { x: 30, y: 9 }), vy = (p) => (geo.izq ? fb.h - 1 - p.y : p.y);
+    const dir = desde ? { x: j.x - desde.x, y: j.y - desde.y } : { x: rnd(-1, 1), y: 1 };
+    const r = crearRagdoll({
+      img: spr.img, frame: spr.frames[i], pies: punto(spr, "pies", i, PIES), voltear: j.voltear,
+      x: j.x, y: j.y, dir, fuerza: 1.4, arrancar: 0.35,
+      extra: (pts) => {
+        pts.ARMA = { x: geo.boca.x, y: j.y, z: j.y - geo.boca.y, vx: pts.N.vx + rnd(-30, 30), vy: pts.N.vy, vz: pts.N.vz + rnd(20, 60) };
+        return { nombre: "arma", lienzo: c, x0: 0, y0: 0, a: "N", b: "ARMA", ra: { x: geo.hb.x, y: vy(geo.hb) }, rb: { x: boca.x, y: vy(boca) } };
+      },
+    });
+    if (r) { this.ragdolls.push(r); this.cuerpoJugador = r; }
+    this.salpicar(j.x, j.y, 30);
+    j.ragdoll = true;
+  }
+
+  // Estallido de sangre en todas direcciones desde el cuerpo.
+  salpicar(x, y, n) {
+    for (let i = 0; i < n; i++) {
+      const a = rnd(0, Math.PI * 2), v = rnd(20, 110);
+      this.gota(x + rnd(-4, 4), y, rnd(8, 30), Math.cos(a) * v, Math.sin(a) * v * 0.6, rnd(20, 130));
     }
   }
 
@@ -438,10 +466,20 @@ export class Juego {
       this.gota(x, z.y, z.y - y, (b.vx / v) * rnd(20, 70) + rnd(-18, 18), rnd(-12, 12), rnd(15, 70));
     }
     sonar("impacto", 0.03);
-    if (z.vida <= 0) this.matarZombi(z);
+    if (z.vida <= 0) this.matarZombi(z, { x: b.vx, y: b.vy }, a.empuje / 4.5, critico);
   }
 
-  matarZombi(z) {
+  // Muere: el cuerpo se convierte en ragdoll. Cuanto más fuerte el golpe (escopeta), más trozos arranca;
+  // un crítico vuela la cabeza.
+  matarZombi(z, dir = { x: 0, y: -1 }, fuerza = 1, critico = false) {
+    const { i, pies } = this.cuadroZombi(z), spr = z.spr;
+    const v = spr.variantes[z.variante] || spr.variantes[0];
+    const r = crearRagdoll({
+      img: v.img, frame: spr.frames[i], pies, voltear: z.voltear, x: z.x, y: z.y, dir,
+      fuerza, arrancar: Math.min(0.8, 0.25 + 0.2 * fuerza), cabeza: critico,
+    });
+    if (r) this.ragdolls.push(r);
+    this.salpicar(z.x, z.y, 18 + Math.round(10 * fuerza));
     z.muerto = 0.0001; z.ataque = 0;
     this.stats.bajas++;
     sonar("muereZombi", 0.05);
@@ -503,6 +541,18 @@ export class Juego {
       }
     }
     this.particulas = this.particulas.filter((p) => p.vida > 0);
+    // Ragdolls: cuando quedan quietos se pintan en el suelo (con su charco) y dejan de calcularse.
+    const sangrar = (x, y, z, vx, vy, vz) => this.gota(x, y, z, vx, vy, vz);
+    for (const r of this.ragdolls) {
+      moverRagdoll(r, dt, sangrar);
+      if (asentado(r)) {
+        const g = this.mapa.sueloCtx;
+        manchar(g, r.pts.P.x, r.pts.P.y, rndInt(0, 3), 0.85);
+        dibujarRagdoll(g, r);
+        r.fuera = true;
+      }
+    }
+    this.ragdolls = this.ragdolls.filter((r) => !r.fuera);
     for (const f of this.fogonazos) f.t += dt;
     const durFogonazo = duracion(S.fogonazo, "") || S.fogonazo.frames.reduce((s, f) => s + f.dur, 0);
     this.fogonazos = this.fogonazos.filter((f) => f.t < durFogonazo);
@@ -547,7 +597,8 @@ export class Juego {
 
   // ------------------------------------------------------------------ cámara
   moverCamara(dt) {
-    const j = this.jugador, c = this.camara, m = this.mapa;
+    const c = this.camara, m = this.mapa;
+    const j = this.cuerpoJugador ? this.cuerpoJugador.pts.P : this.jugador;
     const ox = j.x - this.ancho / 2;
     const oy = j.y - this.alto * ALTURA_JUGADOR;  // se ve más por delante (arriba), de donde vienen
     const k = 1 - Math.exp(-dt * 6);
@@ -576,9 +627,6 @@ export class Juego {
     // Suelo
     g.drawImage(this.mapa.suelo, cx, cy, this.ancho, this.alto, cx, cy, this.ancho, this.alto);
 
-    // Cadáveres debajo de todo
-    for (const z of this.zombis) if (z.muerto && this.enPantalla(z.x, z.y)) this.dibujarZombi(g, z);
-
     // Sombras en el suelo
     g.fillStyle = "rgba(8,7,14,0.38)";
     const sombra = (x, y, rx, ry = rx * 0.38) => { g.beginPath(); g.ellipse(Math.round(x), Math.round(y), rx, ry, 0, 0, Math.PI * 2); g.fill(); };
@@ -600,7 +648,8 @@ export class Juego {
     for (const o of this.mapa.objetos) if (this.enPantalla(o.x, o.y, 70)) cosas.push({ y: o.y, f: () => this.dibujarObjeto(g, o) });
     for (const z of this.zombis) if (!z.muerto && this.enPantalla(z.x, z.y)) cosas.push({ y: z.y, f: () => this.dibujarZombi(g, z) });
     for (const o of this.botin) cosas.push({ y: o.y - 0.5, f: () => this.dibujarBotin(g, o) });
-    cosas.push({ y: j.y, f: () => this.dibujarJugador(g) });
+    if (!j.ragdoll) cosas.push({ y: j.y, f: () => this.dibujarJugador(g) });
+    for (const r of this.ragdolls) if (this.enPantalla(r.pts.P.x, r.y, 60)) cosas.push({ y: r.y, f: () => dibujarRagdoll(g, r) });
     cosas.sort((a, b) => a.y - b.y);
     for (const k of cosas) k.f();
 
@@ -739,21 +788,20 @@ export class Juego {
     g.restore();
   }
 
-  dibujarZombi(g, z) {
+  // Fotograma que toca ahora a un zombi vivo (también lo usa el ragdoll al morir).
+  cuadroZombi(z) {
     const spr = z.spr;
-    if (z.muerto) {
-      const i = fotograma(spr, "morir", z.muerto, false);
-      if (z.muerto > 7) g.globalAlpha = Math.max(0, 1 - (z.muerto - 7) / 2);
-      dibujarAnclado(g, spr, i, z.x, z.y, punto(spr, "pies", i, PIES), z.voltear);
-      g.globalAlpha = 1;
-      return;
-    }
-    let i;
     const o = orientar(spr, z.ataque > 0 ? "atacar" : "andar", z.ang ?? 0);
     z.voltear = o.voltear;
-    if (z.ataque > 0) i = fotograma(spr, o.tag, duracion(spr, o.tag) - z.ataque, false);
-    else i = fotograma(spr, o.tag, z.anim * (z.vel / z.def.velocidad));
-    const pies = punto(spr, "pies", i, PIES);
+    const i = z.ataque > 0 ? fotograma(spr, o.tag, duracion(spr, o.tag) - z.ataque, false)
+      : fotograma(spr, o.tag, z.anim * (z.vel / z.def.velocidad));
+    return { i, pies: punto(spr, "pies", i, PIES) };
+  }
+
+  dibujarZombi(g, z) {
+    const spr = z.spr;
+    if (z.muerto) return;
+    const { i, pies } = this.cuadroZombi(z);
     if (z.aparece > 0) {                 // sale de la tierra
       const k = 1 - z.aparece / 0.7, alto = Math.round(38 * k);
       g.save();

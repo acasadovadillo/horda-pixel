@@ -97,6 +97,7 @@ function recolorear(img, cambios, ojo) {
   }
   g.putImageData(px, 0, 0);
   go.putImageData(ojos, 0, 0);
+  c.pixeles = px;              // el ragdoll los necesita al morir: así no hay que leerlos de la tarjeta gráfica
   return { img: c, ojos: o };
 }
 
