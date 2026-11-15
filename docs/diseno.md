@@ -41,6 +41,13 @@ Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en 
   - **Zonas** (pestaña ZONAS): enfermería (te cura dentro de la base), taller (repara el 30 % del muro y recarga torretas tras cada ronda), armería (un lote de munición de cada arma tras cada ronda).
   - El chaleco pasa a la pestaña CURACIÓN.
 
+- **Progreso entre partidas** (2026-11-15, `src/perfil.js`, `src/menus.js`, `src/mascotas.js`; se guarda en `horda-pixel:perfil`):
+  - Cada partida acabada (o reiniciada a medias) se apunta: ronda, bajas, monedas, tiempo, puntería y rescatados. Se guardan las 20 últimas, los totales y las mejores marcas.
+  - **Estadísticas**: desde la pausa (botón ANTERIORES) y desde la pantalla de inicio: mejores marcas y últimas partidas. Al morir se avisa de las marcas batidas y de lo desbloqueado.
+  - **Personaje** (inicio, pausa y pantalla final): trajes y mascotas. Se desbloquean con logros:
+    - Trajes: militar (ronda 5), motero (500 bajas en total), médico (3 rescatados), leñador (100 bajas cuerpo a cuerpo), pirómano (60 bajas con fuego o explosiones), veterano (ronda 10). Son el dibujo del jugador con otra ropa.
+    - Mascotas: perro (ronda 3; muerde y frena), gato (200 bajas; recoge monedas y virotes), cuervo (10 partidas; pica a los zombis y trae monedas). No mueren.
+
 ## Números (src/config.js)
 Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 

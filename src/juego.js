@@ -1,6 +1,6 @@
 // Partida: jugador, zombis, balas, botín, oleadas, cámara, luces, interfaz.
 import { PANTALLA, JUGADOR, ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, FUEGO, FOCOS, ZOMBIS, OLEADAS, BOTIN, BASE, MUNICION, MEJORAS, PRECIOS } from "./config.js";
-import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
+import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto, vestido } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, leerApuntado, RADIO_STICK } from "./entrada.js";
 import { sonar, sonarRecarga, sonarCartucho, sonarCorredera, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
@@ -9,13 +9,17 @@ import { crearRagdoll, moverRagdoll, dibujarRagdoll, asentado } from "./ragdoll.
 import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo, dibujarAlambre, dibujarTienda } from "./base.js";
 import { pantallaTienda } from "./tienda.js";
 import { crearDefensas, moverDefensas, deslumbrado, ponerTrampa, cadena, balaABarril, finDeRonda, cosasDefensas, dibujarTrampasSuelo, lucesDefensas } from "./defensas.js";
+import { leerPerfil, apuntarPartida, TRAJES } from "./perfil.js";
+import { crearMascota, moverMascota, cosasMascota } from "./mascotas.js";
+import { pantallaPersonaje, pantallaHistorial } from "./menus.js";
 import { quizaSuperviviente, moverSupervivientes, herirSuperviviente, cosasSupervivientes, marcasSupervivientes, flechaSuperviviente } from "./supervivientes.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
 const ORDEN_ARMAS = ARMAS_FUEGO;               // armas de fuego, en el orden de la barra
 const CASILLAS = ["cuerpo", ...ARMAS_FUEGO];    // la primera casilla es el arma de cuerpo a cuerpo que llevas
 const TODAS = [...CUERPO, ...ARMAS_FUEGO];
-const G = 330;                                  // gravedad de lo que se lanza (px/s²)
+const G = 330;
+const TRAJE_IDS = new Set(TRAJES.map((x) => x.id));                                  // gravedad de lo que se lanza (px/s²)
 const PIES = { x: 20, y: 38 };          // punto de los pies por defecto en los lienzos de 40x40
 const HOMBRO = { x: 20, y: 13 };
 const PECHO = 19;                       // px sobre los pies: adonde se apunta y donde impactan las balas
@@ -91,7 +95,10 @@ export class Juego {
     this.ragdolls = [];          // cuerpos cayendo y trozos volando (después se quedan pintados en el suelo)
     this.blanco = null;
     this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0, superada: 0, esperando: false };
-    this.stats = { bajas: 0, monedas: 0, tiempo: 0, disparos: 0, impactos: 0, dano: 0, recibido: 0 };
+    this.stats = { bajas: 0, monedas: 0, tiempo: 0, disparos: 0, impactos: 0, dano: 0, recibido: 0, rescatados: 0, bajasCuerpo: 0, bajasFuego: 0 };
+    this.apuntada = false;       // la partida ya se guardó en el historial
+    this.resultado = null;       // marcas y logros nuevos al acabar
+    crearMascota(this, leerPerfil().mascota);
     this.monedas = 0;              // las que llevas para gastar (stats.monedas = todas las recogidas)
     this.camara = { x: s.x - this.ancho / 2, y: s.y - this.alto * ALTURA_JUGADOR };
     this.sacudida = 0;
@@ -114,7 +121,18 @@ export class Juego {
     if ((c === "Enter" || c === "Space") && (this.estado === "inicio" || this.estado === "fin")) this.empezar();
   }
 
+  // Guarda la partida en el historial (una sola vez; también si se reinicia a medias).
+  apuntar() {
+    if (this.apuntada || this.oleada.n < 1) return;
+    this.apuntada = true;
+    this.resultado = apuntarPartida(this.stats, this.oleada.n);
+  }
+
+  get traje() { return leerPerfil().traje; }
+
   empezar() {
+    this.apuntar();
+    this.verPersonaje = false;
     pantallaCompletaHorizontal();
     desbloquear();
     sonar("boton");
@@ -178,7 +196,7 @@ export class Juego {
   iconoArma(n) { return S[n] || S.pistola; }
 
   pausar() {
-    this.verEstadisticas = false;
+    this.verEstadisticas = false; this.verHistorial = false; this.verPersonaje = false;
     if (this.estado === "jugando") this.estado = "pausa";
     else if (this.estado === "pausa") this.estado = "jugando";
   }
@@ -237,6 +255,7 @@ export class Juego {
     this.moverLanzados(dt);
     moverDefensas(this, dt);
     moverSupervivientes(this, dt);
+    moverMascota(this, dt);
     this.moverBotin(dt);
     this.moverEfectos(dt);
     this.oleadas(dt);
@@ -248,7 +267,7 @@ export class Juego {
     j.golpe = Math.max(0, j.golpe - dt);
     if (j.muerto) {
       j.muerto += dt;
-      if (j.muerto > 2.4 && this.estado === "jugando") this.estado = "fin";
+      if (j.muerto > 2.4 && this.estado === "jugando") { this.estado = "fin"; this.apuntar(); }
       return;
     }
     leerMovimiento();
@@ -455,7 +474,7 @@ export class Juego {
       for (let i = 0; i < (critico ? 10 : 5); i++) this.gota(z.x, z.y, rnd(10, 26), ux * rnd(20, 80) + rnd(-20, 20), uy * rnd(10, 40) + rnd(-10, 10), rnd(15, 70));
       if (!alguno && j.tDisparo > 0.05) { j.tDisparo = 0; }
       alguno = true;
-      if (z.vida <= 0) this.matarZombi(z, { x: ux, y: uy }, a.empuje / 7 + (critico ? 1 : 0.4), critico);
+      if (z.vida <= 0) { this.stats.bajasCuerpo++; this.matarZombi(z, { x: ux, y: uy }, a.empuje / 7 + (critico ? 1 : 0.4), critico); }
     }
     if (alguno) {
       this.stats.disparos += 0;   // el barrido ya contó como un disparo
@@ -525,7 +544,7 @@ export class Juego {
           z.arde = Math.max(z.arde || 0, 1.5);
           z.vida -= FUEGO.danoSuelo * dt;
           z.barra = 2;
-          if (z.vida <= 0) this.matarZombi(z, { x: 0, y: -1 }, 0.5);
+          if (z.vida <= 0) { this.stats.bajasFuego++; this.matarZombi(z, { x: 0, y: -1 }, 0.5); }
         }
       }
       if (f.t >= f.dur) {
@@ -550,7 +569,7 @@ export class Juego {
       const k = 1 - 0.55 * Math.min(1, d / L.radio), dano = L.dano * k;
       z.vida -= dano; z.golpe = 0.1; z.barra = 2;
       this.stats.dano += Math.min(dano, z.vida + dano);
-      if (z.vida <= 0) { this.stats.impactos++; this.matarZombi(z, { x: dx, y: dy }, 2.4 + k, Math.random() < 0.35); }
+      if (z.vida <= 0) { this.stats.impactos++; this.stats.bajasFuego++; this.matarZombi(z, { x: dx, y: dy }, 2.4 + k, Math.random() < 0.35); }
       else { z.x += (dx / d) * 18 * k; z.y += (dy / d) * 18 * k; z.ataque = 0; z.espera = Math.max(z.espera, 0.8); resolverChoques(this.mapa, z, z.def.radio); }
     }
     // Esquirlas, tierra y humo
@@ -609,7 +628,7 @@ export class Juego {
           z.arde = Math.max(z.arde || 0, f.quema);
           this.stats.impactos += 0.1;      // muchas llamas por zombi: cuentan poco para la puntería
           this.stats.dano += f.dano;
-          if (z.vida <= 0) this.matarZombi(z, { x: f.vx, y: f.vy }, 0.5);
+          if (z.vida <= 0) { this.stats.bajasFuego++; this.matarZombi(z, { x: f.vx, y: f.vy }, 0.5); }
         }
       }
     }
@@ -659,8 +678,9 @@ export class Juego {
         z.barra = 2;
         this.stats.dano += FUEGO.dano * dt;
         if (Math.random() < dt * 10) this.particulas.push({ x: z.x + rnd(-5, 5), y: z.y, z: rnd(14, 30), vx: rnd(-8, 8), vy: 0, vz: rnd(20, 50), color: Math.random() < 0.5 ? "#ffc93a" : "#f08a1c", vida: 0.5, chispa: true });
-        if (z.vida <= 0) { this.matarZombi(z, { x: 0, y: -1 }, 0.5); continue; }
+        if (z.vida <= 0) { this.stats.bajasFuego++; this.matarZombi(z, { x: 0, y: -1 }, 0.5); continue; }
       }
+      if (z.mordido > 0) z.mordido -= dt;     // mordido por el perro: va más despacio
       if (z.atrapado > 0) z.atrapado -= dt;   // pillado en un cepo
       z.gruñe -= dt;
       if (z.aparece > 0) { z.aparece -= dt; continue; }
@@ -734,7 +754,7 @@ export class Juego {
       const ox = z.x, oy = z.y;
       // Alambre de espino delante del muro: frena y hiere
       const enAlambre = this.base.alambre && z.y > this.base.y - 50 && z.y < this.base.y - 8;
-      const vel = z.vel * (enAlambre ? BASE.alambre.lentitud : 1) * (deslumbrado(this.base, z) ? FOCOS.lentitud : 1);
+      const vel = z.vel * (enAlambre ? BASE.alambre.lentitud : 1) * (deslumbrado(this.base, z) ? FOCOS.lentitud : 1) * (z.mordido > 0 ? 0.5 : 1);
       if (enAlambre) {
         z.vida -= BASE.alambre.dano * dt;
         if (Math.random() < dt * 3) this.gota(z.x, z.y, rnd(2, 12), rnd(-20, 20), rnd(-8, 8), rnd(10, 40));
@@ -818,11 +838,11 @@ export class Juego {
     const c = document.createElement("canvas"); c.width = fb.w; c.height = fb.h;
     const gc = c.getContext("2d");
     if (geo.izq) { gc.translate(0, fb.h); gc.scale(1, -1); }
-    gc.drawImage(br.img, fb.x, fb.y, fb.w, fb.h, 0, 0, fb.w, fb.h);
+    gc.drawImage(vestido("brazos_" + j.arma, this.traje) || br.img, fb.x, fb.y, fb.w, fb.h, 0, 0, fb.w, fb.h);
     const boca = punto(br, "boca", 0, { x: 30, y: 9 }), vy = (p) => (geo.izq ? fb.h - 1 - p.y : p.y);
     const dir = desde ? { x: j.x - desde.x, y: j.y - desde.y } : { x: rnd(-1, 1), y: 1 };
     const r = crearRagdoll({
-      img: spr.img, frame: spr.frames[i], pies: punto(spr, "pies", i, PIES), voltear: j.voltear,
+      img: vestido("jugador", this.traje), frame: spr.frames[i], pies: punto(spr, "pies", i, PIES), voltear: j.voltear,
       x: j.x, y: j.y, dir, fuerza: 1.4, arrancar: 0.35,
       extra: (pts) => {
         pts.ARMA = { x: geo.boca.x, y: j.y, z: j.y - geo.boca.y, vx: pts.N.vx + rnd(-30, 30), vy: pts.N.vy, vz: pts.N.vz + rnd(20, 60) };
@@ -1119,6 +1139,7 @@ export class Juego {
     for (const f of this.fuegos) cosas.push({ y: f.y - f.r * 0.6, f: () => this.dibujarFuego(g, f) });
     cosasDefensas(this, g, cosas);
     cosasSupervivientes(this, g, cosas);
+    cosasMascota(this, g, cosas, sombra);
     if (!j.ragdoll) cosas.push({ y: j.y, f: () => this.dibujarJugador(g) });
     for (const r of this.ragdolls) if (this.enPantalla(r.pts.P.x, r.y, 60)) cosas.push({ y: r.y, f: () => dibujarRagdoll(g, r) });
     cosas.sort((a, b) => a.y - b.y);
@@ -1276,14 +1297,14 @@ export class Juego {
     const i = this.cuadroJugador();
     const pies = punto(spr, "pies", i, PIES);
     if (j.muerto) {
-      dibujarAnclado(g, spr, i, j.x, j.y, pies, j.voltear);
+      dibujarAnclado(g, spr, i, j.x, j.y, pies, j.voltear, vestido("jugador", this.traje));
       return;
     }
     const destello = j.golpe > 0 ? (Math.floor(j.golpe * 30) % 2 ? "roja" : "blanca") : "img";
     // De espaldas (n, ne, nw) los brazos con el arma quedan detrás del cuerpo
     const detras = j.dir === "n" || j.dir === "ne";
     if (detras) this.dibujarBrazos(g, destello);
-    dibujarAnclado(g, spr, i, j.x, j.y, pies, j.voltear, spr[destello]);
+    dibujarAnclado(g, spr, i, j.x, j.y, pies, j.voltear, destello === "img" ? vestido("jugador", this.traje) : spr[destello]);
     if (!detras) this.dibujarBrazos(g, destello);
   }
 
@@ -1302,7 +1323,8 @@ export class Juego {
     g.translate(geo.hombro.x + 0.5, geo.hombro.y + 0.5);
     g.rotate(ang);
     if (geo.izq) g.scale(1, -1);
-    g.drawImage(br[destello], f.x, f.y, f.w, f.h, -geo.hb.x - 0.5, -geo.hb.y - 0.5, f.w, f.h);
+    const hoja = destello === "img" ? (vestido("brazos_" + j.arma, this.traje) || br.img) : br[destello];
+    g.drawImage(hoja, f.x, f.y, f.w, f.h, -geo.hb.x - 0.5, -geo.hb.y - 0.5, f.w, f.h);
     g.restore();
   }
 
@@ -1721,6 +1743,8 @@ export class Juego {
 
   pantallaInicio(g) {
     const W = this.uiW, H = this.uiH;
+    if (this.verPersonaje) return pantallaPersonaje(this, g);
+    if (this.verHistorial) { this.velo(g, 0.9); return pantallaHistorial(this, g); }
     this.velo(g, 0.5);
     const tit = S.titulo;
     dibujar(g, tit, 0, Math.round(W / 2 - tit.w / 2), Math.round(H * 0.06));
@@ -1730,8 +1754,8 @@ export class Juego {
     const ij = fotograma(jug, orientar(jug, "quieto", 0).tag, ahora), h = punto(jug, "hombro", ij, HOMBRO), hb = punto(br, "hombro", 0, { x: 8, y: 10 });
     g.save();
     g.translate(Math.round(W / 2 - 78), Math.round(H * 0.29)); g.scale(2, 2);
-    dibujar(g, jug, ij, 0, 0);
-    dibujar(g, br, primero(br, "apuntar"), h.x - hb.x, h.y - hb.y);
+    dibujar(g, jug, ij, 0, 0, false, vestido("jugador", this.traje));
+    dibujar(g, br, primero(br, "apuntar"), h.x - hb.x, h.y - hb.y, false, vestido("brazos_pistola", this.traje));
     g.restore();
     g.save();
     g.translate(Math.round(W / 2 + 2), Math.round(H * 0.29)); g.scale(2, 2);
@@ -1743,6 +1767,10 @@ export class Juego {
     texto(g, t("prototipo") + " 0.4", W / 2, H - 16, "#85837a", "centro");
     this.boton(0, 0, W, H, () => this.empezar());
     this.selectorIdioma(g, W - 6 - this.anchoSelector(), 6);
+    // Personaje (trajes y mascotas) y estadísticas de partidas anteriores, en las esquinas de abajo
+    const bp = anchoTexto(t("personaje"), 2) + 24, be = anchoTexto(t("estadisticas"), 2) + 24;
+    this.botonGrande(g, t("personaje"), H - 38, () => { this.verPersonaje = true; this.infoTraje = this.infoMascota = null; sonar("boton"); }, "#3b526b", 6, bp);
+    this.botonGrande(g, t("estadisticas"), H - 38, () => { this.verHistorial = true; sonar("boton"); }, "#34363d", W - 6 - be, be);
   }
 
   // Dos banderas para elegir idioma (España = español, EE. UU. = inglés); la activa, resaltada.
@@ -1784,9 +1812,13 @@ export class Juego {
   pantallaPausa(g) {
     const W = this.uiW, H = this.uiH;
     this.velo(g);
-    if (this.verEstadisticas) return this.pantallaEstadisticas(g);
+    if (this.verPersonaje) return pantallaPersonaje(this, g);
+    if (this.verEstadisticas) return this.verHistorial ? pantallaHistorial(this, g) : this.pantallaEstadisticas(g);
     texto(g, t("pausa"), W / 2, H * 0.1, "#ffffff", "centro", 3);
-    this.botonGrande(g, t("seguir"), H * 0.24, () => { sonar("boton"); this.pausar(); });
+    // Seguir y personaje, uno al lado del otro
+    const pw2 = Math.max(anchoTexto(t("seguir"), 2), anchoTexto(t("personaje"), 2)) + 24, xs0 = Math.round(W / 2 - pw2 - 4);
+    this.botonGrande(g, t("seguir"), H * 0.24, () => { sonar("boton"); this.pausar(); }, "#3b526b", xs0, pw2);
+    this.botonGrande(g, t("personaje"), H * 0.24, () => { this.verPersonaje = true; this.infoTraje = this.infoMascota = null; sonar("boton"); }, "#4a3a2a", xs0 + pw2 + 8, pw2);
     // Sonido y cámara, uno al lado del otro
     const txtS = t(silenciado() ? "sonidoNo" : "sonidoSi"), txtC = t("camara") + ": " + t("zoom_" + this.zoom);
     const bw = Math.max(anchoTexto("SONIDO: NO", 2), anchoTexto(txtC, 2), anchoTexto(txtS, 2)) + 24, gap = 8;
@@ -1824,11 +1856,14 @@ export class Juego {
       texto(g, k, W / 2 - 84, y, "#d1cec0");
       texto(g, v, W / 2 + 84, y, "#f2c84a", "der");
     });
-    this.botonGrande(g, t("volver"), y0 + 28 + filas.length * 14 + 8, () => { this.verEstadisticas = false; sonar("boton"); });
+    const bv = Math.max(anchoTexto(t("volver"), 2), anchoTexto(t("anteriores"), 2)) + 24, yv = y0 + 28 + filas.length * 14 + 8;
+    this.botonGrande(g, t("anteriores"), yv, () => { this.verHistorial = true; sonar("boton"); }, "#34363d", Math.round(W / 2 - bv - 4), bv);
+    this.botonGrande(g, t("volver"), yv, () => { this.verEstadisticas = false; sonar("boton"); }, "#3b526b", Math.round(W / 2 + 4), bv);
   }
 
   pantallaFin(g) {
     const W = this.uiW, H = this.uiH, s = this.stats;
+    if (this.verPersonaje) return pantallaPersonaje(this, g);
     this.velo(g, 0.72);
     texto(g, t("hasMuerto"), W / 2, H * 0.06, "#e0403a", "centro", 3);
     const filas = [
@@ -1845,6 +1880,16 @@ export class Juego {
       texto(g, k, W / 2 - 84, y, "#d1cec0");
       texto(g, v, W / 2 + 84, y, "#f2c84a", "der");
     });
-    this.botonGrande(g, t("otraVez"), H * 0.2 + filas.length * 14 + 10, () => this.empezar(), "#4a6a34");
+    // Marcas batidas y cosas desbloqueadas en esta partida
+    let yr = H * 0.2 + filas.length * 14 + 4;
+    const r = this.resultado;
+    if (r && r.marcas.length) { texto(g, t("nuevaMarca") + ": " + r.marcas.map((k) => t(k === "ronda" ? "oleada" : k)).join(", "), W / 2, yr, "#f2c84a", "centro"); yr += 13; }
+    if (r && r.logros.length) {
+      texto(g, t("desbloqueado") + ": " + r.logros.map((x) => t((TRAJE_IDS.has(x.id) ? "traje_" : "mascota_") + x.id)).join(", "), W / 2, yr, "#7ee07e", "centro");
+      yr += 13;
+    }
+    const bo = Math.max(anchoTexto(t("otraVez"), 2), anchoTexto(t("personaje"), 2)) + 24;
+    this.botonGrande(g, t("otraVez"), yr + 6, () => this.empezar(), "#4a6a34", Math.round(W / 2 - bo - 4), bo);
+    this.botonGrande(g, t("personaje"), yr + 6, () => { this.verPersonaje = true; this.infoTraje = this.infoMascota = null; sonar("boton"); }, "#3b526b", Math.round(W / 2 + 4), bo);
   }
 }

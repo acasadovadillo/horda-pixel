@@ -38,7 +38,8 @@ const OPCIONALES = ["muro", "porton", "alambre", "tienda", "iconos_tienda",
   "bate", "machete", "francotirador", "ballesta", "lanzallamas",
   "brazos_bate", "brazos_machete", "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas",
   "proyectiles", "fuego", "explosion",
-  "torreta", "foco", "mina", "barril_explosivo", "cepo", "enfermeria", "taller", "armeria"];
+  "torreta", "foco", "mina", "barril_explosivo", "cepo", "enfermeria", "taller", "armeria",
+  "perro", "gato", "cuervo"];
 const BRAZOS = ["brazos_pistola", "brazos_subfusil", "brazos_escopeta", "brazos_bate", "brazos_machete",
   "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas"];
 
@@ -107,6 +108,29 @@ const ROPA_SUPERVIVIENTES = [
   { chaqueta: ["33290f", "54441c", "78632c", "9c8444", "b39c5a"], caqui: ["2b2c2f", "414348", "5a5d62", "777a7e", "94979a"], pelo: ["3d1a10", "63301c", "8a4a2a", "a8663d"] },
   { chaqueta: ["3a3a38", "5c5a52", "85837a", "aeab9f", "d1cec0"], caqui: ["2a2018", "40301f", "594430", "765c40", "8f7350"], pelo: ["4a4a48", "6e6e6a", "93938d", "b3b2aa"], piel: ["5c3b30", "8a5c48", "b5836a", "d4a68e", "ecc8b0"] },
 ];
+// Trajes del jugador (se desbloquean con logros; ver perfil.js).
+const ROPA_TRAJES = {
+  militar: { chaqueta: ["1f2416", "323a22", "4a5432", "66713f", "858f55"], caqui: ["22281a", "343d26", "4a5636", "637048", "7d8a5c"] },
+  motero: { chaqueta: ["141317", "222127", "33323a", "4a4952", "5f5e68"], caqui: ["1a2030", "28324a", "3a4866", "526285", "6a7ba0"], pelo: ["0f0e10", "1c1a1d", "2c2a2e", "3e3b40"] },
+  medico: { chaqueta: ["5c5a52", "85837a", "aeab9f", "d1cec0", "e8e5d8"], caqui: ["23332f", "365049", "4d6d64", "6b8c82", "88a8a0"] },
+  lenador: { chaqueta: ["3a1210", "62201c", "8a3229", "a94a3b", "c46a58"], caqui: ["1a2030", "28324a", "3a4866", "526285", "6a7ba0"], pelo: ["3d1a10", "63301c", "8a4a2a", "a8663d"] },
+  piromano: { chaqueta: ["3d1c0e", "6b3418", "9a5528", "c27a42", "e0a26a"], caqui: ["17171c", "25252c", "35353e", "4a4954", "5e5d68"] },
+  veterano: { chaqueta: ["2b2c2f", "414348", "5a5d62", "777a7e", "94979a"], caqui: ["1e1f24", "292b31", "34363d", "41444c", "51545d"], pelo: ["4a4a48", "6e6e6a", "93938d", "b3b2aa"] },
+};
+function cambiosDe(ropa) {
+  const cambios = {};
+  for (const [rampa, dest] of Object.entries(ropa)) RAMPAS[rampa].forEach((h, i) => { cambios[h] = dest[Math.min(i, dest.length - 1)]; });
+  return cambios;
+}
+const vestidos = new Map();
+// Hoja del sprite «n» (el jugador o unos brazos) con la ropa del traje; la original si no hay traje.
+export function vestido(n, traje) {
+  if (!traje || traje === "original" || !ROPA_TRAJES[traje] || !S[n]) return S[n]?.img;
+  const k = n + "|" + traje;
+  if (!vestidos.has(k)) vestidos.set(k, recolorear(S[n].img, cambiosDe(ROPA_TRAJES[traje]), null).img);
+  return vestidos.get(k);
+}
+
 function prepararSupervivientes() {
   S.supervivientes = ROPA_SUPERVIVIENTES.map((v) => {
     const cambios = {};
