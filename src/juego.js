@@ -750,16 +750,18 @@ export class Juego {
     const o = this.oleada;
     texto(g, t("bajas") + " " + this.stats.bajas, 5, 21, "#d1cec0");
     texto(g, t("oleada") + " " + Math.max(1, o.n), W / 2, 21, "#f2c84a", "centro");
-    const txtM = String(this.stats.monedas);
-    dibujar(g, S.moneda, 0, W - 6 - anchoTexto(txtM) - 13, 21);
-    texto(g, txtM, W - 5, 21, "#f2c84a", "der");
+    // Pausa: botón grande arriba a la derecha y zona tocable aún más grande alrededor
+    const pw = 30, ph = 28, bx = W - pw - 4, by = 3;
+    g.fillStyle = "#0e0d12"; g.fillRect(bx, by, pw, ph);
+    g.fillStyle = "#34363d"; g.fillRect(bx + 1, by + 1, pw - 2, ph - 2);
+    g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(bx + 1, by + 1, pw - 2, 2);
+    g.fillStyle = "#d1cec0"; g.fillRect(bx + 9, by + 7, 4, 14); g.fillRect(bx + 17, by + 7, 4, 14);
+    this.boton(bx - 14, 0, pw + 18, ph + 16, () => { sonar("boton"); this.pausar(); });
 
-    // Pausa
-    const bx = W - 21;
-    g.fillStyle = "#0e0d12"; g.fillRect(bx, 3, 16, 14);
-    g.fillStyle = "#34363d"; g.fillRect(bx + 1, 4, 14, 12);
-    g.fillStyle = "#d1cec0"; g.fillRect(bx + 5, 7, 2, 6); g.fillRect(bx + 9, 7, 2, 6);
-    this.boton(bx - 6, 0, 28, 22, () => { sonar("boton"); this.pausar(); });
+    // Monedas, a la izquierda del botón de pausa
+    const txtM = String(this.stats.monedas);
+    texto(g, txtM, bx - 8, by + 9, "#f2c84a", "der");
+    dibujar(g, S.moneda, 0, bx - 8 - anchoTexto(txtM) - 13, by + 9);
 
     // Armas (abajo a la derecha). De momento se pueden elegir todas para probarlas.
     const slotW = 40, slotH = 24, gap = 3;

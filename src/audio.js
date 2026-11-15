@@ -8,20 +8,43 @@ let silencio = false;
 const ultimo = {};   // evita que 20 zombis gruñan en el mismo instante
 
 export function desbloquear() {
+  // iPhone: sin esto, Web Audio se calla cuando el interruptor de silencio está puesto
+  // (iOS lo trata como sonido «ambiente»). Con "playback" suena como un juego o un vídeo.
+  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) { /* no disponible */ }
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ctx = new AC();
     maestro = ctx.createGain();
-    maestro.gain.value = 0.55;
+    maestro.gain.value = silencio ? 0 : 0.55;
     const comp = ctx.createDynamicsCompressor();
     maestro.connect(comp).connect(ctx.destination);
     ruido = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = ruido.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
-  if (ctx.state === "suspended") ctx.resume();
+  if (ctx.state !== "running") {
+    ctx.resume().catch(() => {});
+    // Safari solo arranca el audio si suena algo dentro del propio toque: un instante de silencio.
+    try {
+      const b = ctx.createBuffer(1, 1, ctx.sampleRate);
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch (e) { /* nada */ }
+  }
 }
+
+// En iPhone el permiso de sonido llega con el toque al levantar el dedo (touchend / click),
+// no al apoyarlo; por eso se intenta en todos esos momentos, no solo al empezar la partida.
+for (const ev of ["touchend", "pointerup", "click", "keydown"]) {
+  window.addEventListener(ev, desbloquear, { capture: true, passive: true });
+}
+// Al volver a la app (después de una llamada o de bloquear el móvil) el audio queda parado.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && ctx && ctx.state !== "running") ctx.resume().catch(() => {});
+});
 
 export function silenciar(s) { silencio = s; if (maestro) maestro.gain.value = s ? 0 : 0.55; }
 export function silenciado() { return silencio; }
@@ -126,9 +149,13 @@ const SONIDOS = {
 
 // Reproduce un sonido; minimo = segundos mínimos entre dos iguales.
 export function sonar(nombre, minimo = 0) {
-  if (!ctx || silencio || ctx.state !== "running") return;
+  if (!ctx || silencio) return;
+  if (ctx.state !== "running") { ctx.resume().catch(() => {}); return; }
   const ahora = ctx.currentTime;
   if (minimo && ultimo[nombre] && ahora - ultimo[nombre] < minimo) return;
   ultimo[nombre] = ahora;
   SONIDOS[nombre]?.();
 }
+
+// Para comprobar en pruebas: "running" si el audio está activo.
+export function estadoAudio() { return ctx ? ctx.state : "sin crear"; }
