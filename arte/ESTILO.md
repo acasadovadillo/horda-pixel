@@ -21,6 +21,16 @@ Horda Pixel es un juego de zombis para móvil en vertical. Todo el arte es pixel
 - **Escala:** 20 px = 1 m. Persona 35 px; loseta de suelo 24×24 px; carretera de 5 losetas de ancho.
 - Las sombras en el suelo las pinta el juego: **no dibujes la sombra proyectada** de personajes y objetos.
 
+### 8 direcciones (personas y zombis, desde 2026-11-15)
+Jugador y zombis miran en 8 direcciones. Se dibujan **5** y el juego voltea 3 en espejo:
+- `s`: hacia abajo de la pantalla, de frente a la cámara (se ve la cara entera, el pecho y las puntas de los pies).
+- `se`: abajo a la derecha, 3/4 de frente (cara y pecho girados unos 45°).
+- `e`: a la derecha, el perfil 3/4 de siempre (los fotogramas que ya existían).
+- `ne`: arriba a la derecha, 3/4 de espaldas (se ve la nuca, la espalda y un poco de perfil de la cara).
+- `n`: hacia arriba, de espaldas a la cámara (nuca, espalda, mochila del jugador muy visible).
+- `w`, `sw` y `nw` son el espejo de `e`, `se` y `ne`: no se dibujan.
+Cada animación lleva el sufijo de la dirección: `quieto_s`, `correr_ne`, `andar_n`, `atacar_se`... `morir` es una sola (el juego la voltea). Con la cámara 3/4, al andar hacia `s` o `n` las piernas se mueven sobre todo arriba y abajo (la de delante baja 1–2 px y se ve más grande); los pies siguen pisando la fila 38 y el punto `pies` sigue en { 20, 38 }. El jugador no lleva brazos en ninguna dirección: el juego pinta los brazos con el arma girando alrededor del punto `hombro` (en `n` y `ne`, por detrás del cuerpo).
+
 ## 3. Cómo se trabaja
 
 - Lee `arte/lib.lua` (la API) y `arte/ejemplo/ejemplo.lua` (ejemplo de uso; **no** es referencia de calidad).

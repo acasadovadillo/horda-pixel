@@ -2,7 +2,7 @@
 import { PANTALLA, JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN } from "./config.js";
 import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
-import { entrada, leerMovimiento, RADIO_STICK } from "./entrada.js";
+import { entrada, leerMovimiento, leerApuntado, RADIO_STICK } from "./entrada.js";
 import { sonar, sonarRecarga, sonarCartucho, sonarCorredera, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
 import { pantallaCompletaHorizontal } from "./pantalla.js";
 import { t, idioma, cambiarIdioma } from "./idioma.js";
@@ -20,6 +20,20 @@ function leerZoom() {
   try { const z = localStorage.getItem(CLAVE_ZOOM); if (ZOOMS.includes(z)) return z; } catch (e) { /* sin almacenamiento */ }
   return PANTALLA.vista;
 }
+const CLAVE_DISPARO = "horda-pixel:disparo";
+function leerDisparo() {
+  try { if (localStorage.getItem(CLAVE_DISPARO) === "manual") return "manual"; } catch (e) { /* sin almacenamiento */ }
+  return "auto";
+}
+// 8 direcciones: se dibujan s, se, e, ne y n; w, sw y nw son el espejo de e, se y ne.
+// Ángulos de pantalla (y hacia abajo): 0 = derecha, π/2 = abajo.
+const OCTANTES = [["e", false], ["se", false], ["s", false], ["se", true], ["e", true], ["ne", true], ["n", false], ["ne", false]];
+// Animación y espejo para mirar hacia «ang». Con sprites antiguos (sin _s, _ne...) se usa la de perfil.
+function orientar(spr, base, ang) {
+  const [d, espejo] = OCTANTES[((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8];
+  if (spr.tags[base + "_" + d]) return { tag: base + "_" + d, voltear: espejo, dir: d };
+  return { tag: spr.tags[base + "_e"] ? base + "_e" : base, voltear: Math.cos(ang) < 0, dir: "e" };
+}
 const rnd = (a, b) => a + Math.random() * (b - a);
 const rndInt = (a, b) => Math.floor(rnd(a, b + 1));
 
@@ -30,6 +44,8 @@ export class Juego {
     this.pantW = 270; this.pantH = 480;    // la pantalla en píxeles de interfaz
     this.seguro = { izq: 0, der: 0, arr: 0, aba: 0 };   // márgenes seguros en píxeles de juego
     this.zoom = leerZoom();                              // "cerca" | "media" | "lejos"
+    this.disparo = leerDisparo();                        // "auto" | "manual" (joystick de apuntar a la derecha)
+    entrada.manual = this.disparo === "manual";
     this.reiniciar();
     this.estado = "inicio";
     entrada.alPulsar.push((c) => this.tecla(c));
@@ -155,7 +171,9 @@ export class Juego {
   cuadroJugador() {
     const j = this.jugador, spr = S.jugador;
     if (j.muerto) return fotograma(spr, "morir", j.muerto, false);
-    return fotograma(spr, j.andando ? "correr" : "quieto", j.anim);
+    const o = orientar(spr, j.andando ? "correr" : "quieto", j.angulo);
+    j.voltear = o.voltear; j.dir = o.dir;
+    return fotograma(spr, o.tag, j.anim);
   }
 
   // Posición en el mundo del hombro (donde giran los brazos), la boca del cañón y la ventana de expulsión.
@@ -163,8 +181,8 @@ export class Juego {
     const j = this.jugador, cuerpo = S.jugador, br = S["brazos_" + j.arma];
     const i = this.cuadroJugador();
     const pies = punto(cuerpo, "pies", i, PIES), h = punto(cuerpo, "hombro", i, HOMBRO);
-    const izq = j.voltear;
-    const hombro = { x: Math.round(j.x) + (izq ? pies.x - h.x : h.x - pies.x), y: Math.round(j.y) - (pies.y - h.y) };
+    const izq = Math.cos(j.angulo) < 0;          // los brazos se dan la vuelta al apuntar a la izquierda
+    const hombro = { x: Math.round(j.x) + (j.voltear ? pies.x - h.x : h.x - pies.x), y: Math.round(j.y) - (pies.y - h.y) };
     const hb = punto(br, "hombro", 0, { x: 8, y: 10 });
     const c = Math.cos(j.angulo), s = Math.sin(j.angulo);
     const alMundo = (p) => {
@@ -183,7 +201,11 @@ export class Juego {
     if (j.muerto) return;
     j.espera = Math.max(0, j.espera - dt);
     j.tDisparo += dt;
-    const z = this.zombiMasCercano(a.alcance);
+    // Automático: al zombi visible más cercano. Manual: hacia donde marca el joystick de la derecha.
+    const manual = this.disparo === "manual";
+    const apuntado = manual ? leerApuntado() : null;
+    const z = manual ? null : this.zombiMasCercano(a.alcance);
+    const quiere = manual ? apuntado !== null : !!z;     // quiere disparar ya
     if (j.recarga > 0) {
       j.recarga -= dt;
       if (j.recarga <= 0) {
@@ -192,7 +214,7 @@ export class Juego {
         else {
           j.cargador[j.arma]++;
           sonarCartucho();
-          if (j.cargador[j.arma] < a.cargador && !(z && j.cargador[j.arma] > 0)) {
+          if (j.cargador[j.arma] < a.cargador && !(quiere && j.cargador[j.arma] > 0)) {
             j.recarga = j.recargaPaso = a.recarga;            // siguiente cartucho
           } else if (j.recamaraVacia) {
             j.recamaraVacia = false;                          // corredera para meter el primero en la recámara
@@ -200,22 +222,21 @@ export class Juego {
             j.espera = Math.max(j.espera, a.corredera);
           }
         }
-      } else if (a.porCartucho && z && j.cargador[j.arma] > 0 && j.recarga < j.recargaPaso - 0.05) {
+      } else if (a.porCartucho && quiere && j.cargador[j.arma] > 0 && j.recarga < j.recargaPaso - 0.05) {
         // Aparece un zombi: deja de meter cartuchos y dispara con los que ya tiene.
         j.recarga = 0;
         if (j.recamaraVacia) { j.recamaraVacia = false; sonarCorredera(); j.espera = Math.max(j.espera, a.corredera); }
       }
     }
     this.blanco = z;
-    if (z) {
+    if (quiere) {
       j.sinBlanco = 0;
-      j.angulo = Math.atan2((z.y - PECHO) - (j.y - 25), z.x - j.x);
+      j.angulo = manual ? apuntado : Math.atan2((z.y - PECHO) - (j.y - 25), z.x - j.x);
     } else {
       j.sinBlanco += dt;
       if (j.sinBlanco > 1.2 && j.cargador[j.arma] < a.cargador) this.empezarRecarga();
     }
-    j.voltear = Math.cos(j.angulo) < 0;
-    if (!z || j.recarga > 0 || j.espera > 0) return;
+    if (!quiere || j.recarga > 0 || j.espera > 0) return;
     if (j.cargador[j.arma] <= 0) { this.empezarRecarga(); return; }
 
     // ¡Fuego!
@@ -234,7 +255,7 @@ export class Juego {
     this.stats.disparos += a.perdigones;
     this.fogonazos.push({ x: geo.boca.x, y: geo.boca.y, ang: j.angulo, t: 0 });
     // Casquillo que sale volando hacia atrás
-    const lado = j.voltear ? 1 : -1;
+    const lado = Math.cos(j.angulo) < 0 ? 1 : -1;
     this.particulas.push({
       x: geo.casquillo.x, y: j.y - rnd(0, 5), z: j.y - geo.casquillo.y, vx: lado * rnd(25, 55), vy: rnd(-12, 12), vz: rnd(50, 90),
       color: a.perdigones > 1 ? "#a8322a" : "#d9b24a", vida: 3, casquillo: true,
@@ -293,21 +314,22 @@ export class Juego {
         if (this.enPantalla(z.x, z.y, 0)) sonar("gruñido", 0.6);
       }
       const dx = j.x - z.x, dy = j.y - z.y, d = Math.hypot(dx, dy) || 1;
-      z.voltear = dx < 0;
+      z.ang = Math.atan2(dy, dx);                 // siempre miran al jugador
 
       // Atacar: el golpe llega al empezar el segundo fotograma de la animación
       if (z.ataque > 0) {
         const antes = z.ataque;
         z.ataque -= dt;
-        const total = duracion(z.spr, "atacar");
-        const golpeEn = total - z.spr.frames[primero(z.spr, "atacar")].dur;
+        const tg = orientar(z.spr, "atacar", z.ang).tag;
+        const total = duracion(z.spr, tg);
+        const golpeEn = total - z.spr.frames[primero(z.spr, tg)].dur;
         if (antes > golpeEn && z.ataque <= golpeEn && d <= z.def.alcance + 9 && !j.muerto) this.herirJugador(z.def.dano);
         if (z.ataque <= 0) z.espera = Math.max(0, z.def.cadencia - total);
         continue;
       }
       z.espera = Math.max(0, z.espera - dt);
       if (d <= z.def.alcance && !j.muerto) {
-        if (z.espera <= 0) { z.ataque = duracion(z.spr, "atacar"); sonar("zarpazo", 0.05); }
+        if (z.espera <= 0) { z.ataque = duracion(z.spr, orientar(z.spr, "atacar", z.ang).tag); sonar("zarpazo", 0.05); }
         continue;
       }
       // Andar hacia el jugador; si se atasca, rodea el obstáculo un rato
@@ -690,9 +712,16 @@ export class Juego {
       return;
     }
     const destello = j.golpe > 0 ? (Math.floor(j.golpe * 30) % 2 ? "roja" : "blanca") : "img";
+    // De espaldas (n, ne, nw) los brazos con el arma quedan detrás del cuerpo
+    const detras = j.dir === "n" || j.dir === "ne";
+    if (detras) this.dibujarBrazos(g, destello);
     dibujarAnclado(g, spr, i, j.x, j.y, pies, j.voltear, spr[destello]);
-    // Brazos con el arma, girados alrededor del hombro hacia donde apunta
-    const a = ARMAS[j.arma], br = S["brazos_" + j.arma];
+    if (!detras) this.dibujarBrazos(g, destello);
+  }
+
+  // Brazos con el arma, girados alrededor del hombro hacia donde apunta
+  dibujarBrazos(g, destello) {
+    const j = this.jugador, a = ARMAS[j.arma], br = S["brazos_" + j.arma];
     const geo = this.geometriaArma();
     let fi = primero(br, "apuntar");
     if (j.recarga > 0) fi = fotogramaPorAvance(br, "recargar", 1 - j.recarga / (j.recargaPaso || a.recarga));
@@ -716,8 +745,10 @@ export class Juego {
       return;
     }
     let i;
-    if (z.ataque > 0) i = fotograma(spr, "atacar", duracion(spr, "atacar") - z.ataque, false);
-    else i = fotograma(spr, "andar", z.anim * (z.vel / z.def.velocidad));
+    const o = orientar(spr, z.ataque > 0 ? "atacar" : "andar", z.ang ?? 0);
+    z.voltear = o.voltear;
+    if (z.ataque > 0) i = fotograma(spr, o.tag, duracion(spr, o.tag) - z.ataque, false);
+    else i = fotograma(spr, o.tag, z.anim * (z.vel / z.def.velocidad));
     const pies = punto(spr, "pies", i, PIES);
     if (z.aparece > 0) {                 // sale de la tierra
       const k = 1 - z.aparece / 0.7, alto = Math.round(38 * k);
@@ -807,9 +838,12 @@ export class Juego {
     texto(g, txtM, bx - 8, by + 9, "#f2c84a", "der");
     dibujar(g, S.moneda, 0, bx - 8 - anchoTexto(txtM) - 13, by + 9);
 
-    // Armas (abajo a la derecha). De momento se pueden elegir todas para probarlas.
-    const slotW = 40, slotH = 24, gap = 3;
-    const x0 = W - (slotW + gap) * ORDEN_ARMAS.length - 2, y0 = H - slotH - 8;
+    // Armas (abajo a la derecha; en disparo manual, abajo en el centro porque ahí va el joystick de apuntar).
+    // De momento se pueden elegir todas para probarlas.
+    const manual = this.disparo === "manual";
+    const slotW = 40, slotH = 24, gap = 3, totalW = (slotW + gap) * ORDEN_ARMAS.length - gap;
+    const x0 = manual ? Math.round(W / 2 - totalW / 2) : W - totalW - 5, y0 = H - slotH - 8;
+    const xDer = x0 + totalW;                         // borde derecho de las armas (para la munición)
     ORDEN_ARMAS.forEach((nombre, k) => {
       const x = x0 + k * (slotW + gap), sel = nombre === j.arma;
       g.fillStyle = "#0e0d12"; g.fillRect(x, y0, slotW, slotH);
@@ -825,7 +859,7 @@ export class Juego {
     const a = ARMAS[j.arma];
     const yMun = y0 - 14;
     if (j.recarga > 0) {
-      const w = 56, x = W - 5 - w;
+      const w = 56, x = xDer - w;
       g.fillStyle = "#0e0d12"; g.fillRect(x - 1, yMun + 1, w + 2, 8);
       const avance = 1 - j.recarga / (j.recargaPaso || a.recarga);
       const lleno = a.porCartucho ? (j.cargador[j.arma] + avance) / a.cargador : avance;
@@ -837,7 +871,7 @@ export class Juego {
       texto(g, t("recargando") + (a.porCartucho ? " " + j.cargador[j.arma] + "/" + a.cargador : ""), x - 5, yMun, "#ffffff", "der");
     } else {
       const quedan = j.cargador[j.arma];
-      texto(g, t(j.arma) + "  " + quedan + "/" + a.cargador, W - 5, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");
+      texto(g, t(j.arma) + "  " + quedan + "/" + a.cargador, xDer, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");
     }
 
     // Joystick fijo abajo a la izquierda (siempre visible mientras se juega)
@@ -862,6 +896,33 @@ export class Juego {
       if (this.t < 6) {
         g.globalAlpha = Math.min(1, (6 - this.t) / 1.5);
         texto(g, t("muevete"), base.x - mitad, base.y - mitad - 14);
+        g.globalAlpha = 1;
+      }
+    }
+
+    // Joystick de apuntar, abajo a la derecha (solo en disparo manual)
+    const baseA = { x: W - PANTALLA.joystick.x, y: H - PANTALLA.joystick.y };
+    entrada.baseApunta = { x: baseA.x + this.seguro.izq, y: baseA.y + this.seguro.arr };
+    if (manual && this.estado === "jugando" && !j.muerto) {
+      const ap = entrada.apunta;
+      let dx = 0, dy = 0;
+      if (ap) {
+        dx = ap.x - entrada.baseApunta.x; dy = ap.y - entrada.baseApunta.y;
+        const l = Math.hypot(dx, dy);
+        if (l > RADIO_STICK) { dx = dx / l * RADIO_STICK; dy = dy / l * RADIO_STICK; }
+      }
+      g.globalAlpha = ap ? 0.75 : 0.5;
+      dibujar(g, js, iBase, baseA.x - mitad, baseA.y - mitad);
+      g.globalAlpha = ap ? 0.95 : 0.7;
+      const kx = Math.round(baseA.x + dx), ky = Math.round(baseA.y + dy);
+      dibujar(g, js, iBoton, kx - mitad, ky - mitad);
+      // Mira roja en el botón para distinguirlo del de moverse
+      g.fillStyle = "#e0403a";
+      g.fillRect(kx - 4, ky, 3, 1); g.fillRect(kx + 2, ky, 3, 1); g.fillRect(kx, ky - 4, 1, 3); g.fillRect(kx, ky + 2, 1, 3);
+      g.globalAlpha = 1;
+      if (this.t < 6) {
+        g.globalAlpha = Math.min(1, (6 - this.t) / 1.5);
+        texto(g, t("apunta"), baseA.x + mitad, baseA.y - mitad - 14, "#ffffff", "der");
         g.globalAlpha = 1;
       }
     }
@@ -907,7 +968,7 @@ export class Juego {
     // El superviviente y un zombi, a doble tamaño
     const ahora = performance.now() / 1000;
     const jug = S.jugador, br = S.brazos_pistola, z = S.zombi;
-    const ij = fotograma(jug, "quieto", ahora), h = punto(jug, "hombro", ij, HOMBRO), hb = punto(br, "hombro", 0, { x: 8, y: 10 });
+    const ij = fotograma(jug, orientar(jug, "quieto", 0).tag, ahora), h = punto(jug, "hombro", ij, HOMBRO), hb = punto(br, "hombro", 0, { x: 8, y: 10 });
     g.save();
     g.translate(Math.round(W / 2 - 78), Math.round(H * 0.29)); g.scale(2, 2);
     dibujar(g, jug, ij, 0, 0);
@@ -915,11 +976,11 @@ export class Juego {
     g.restore();
     g.save();
     g.translate(Math.round(W / 2 + 2), Math.round(H * 0.29)); g.scale(2, 2);
-    dibujar(g, z, fotograma(z, "andar", ahora), 0, 0, true);
+    dibujar(g, z, fotograma(z, orientar(z, "andar", 0).tag, ahora), 0, 0, true);
     g.restore();
     if (Math.floor(ahora * 2) % 2 === 0) texto(g, t("tocaEmpezar"), W / 2, H * 0.63, "#ffffff", "centro", 2);
     texto(g, t("ayudaMover"), W / 2, H * 0.77, "#d1cec0", "centro");
-    texto(g, t("ayudaDisparo"), W / 2, H * 0.77 + 13, "#d1cec0", "centro");
+    texto(g, t(this.disparo === "manual" ? "ayudaManual" : "ayudaDisparo"), W / 2, H * 0.77 + 13, "#d1cec0", "centro");
     texto(g, t("prototipo") + " 0.4", W / 2, H - 16, "#85837a", "centro");
     this.boton(0, 0, W, H, () => this.empezar());
     this.selectorIdioma(g, W - 6 - this.anchoSelector(), 6);
@@ -953,6 +1014,14 @@ export class Juego {
     this.moverCamara(1);
   }
 
+  // Automático o manual (joystick de apuntar abajo a la derecha).
+  cambiarDisparo() {
+    this.disparo = this.disparo === "auto" ? "manual" : "auto";
+    entrada.manual = this.disparo === "manual";
+    entrada.apunta = null;
+    try { localStorage.setItem(CLAVE_DISPARO, this.disparo); } catch (e) { /* no pasa nada si no se guarda */ }
+  }
+
   pantallaPausa(g) {
     const W = this.uiW, H = this.uiH;
     this.velo(g);
@@ -964,7 +1033,12 @@ export class Juego {
     const x0 = Math.round(W / 2 - bw - gap / 2);
     this.botonGrande(g, txtS, H * 0.24 + 38, () => { silenciar(!silenciado()); sonar("boton"); }, "#34363d", x0, bw);
     this.botonGrande(g, txtC, H * 0.24 + 38, () => { this.cambiarZoom(); sonar("boton"); }, "#34363d", x0 + bw + gap, bw);
-    this.selectorIdioma(g, Math.round(W / 2 - this.anchoSelector(2) / 2), Math.round(H * 0.24 + 72), 2);
+    // Modo de disparo e idioma, uno al lado del otro
+    const txtD = t("disparo") + ": " + t("disparo_" + this.disparo);
+    const dw = Math.max(anchoTexto(t("disparo") + ": " + t("disparo_manual"), 2), anchoTexto(t("disparo") + ": " + t("disparo_auto"), 2)) + 24;
+    const sw = this.anchoSelector(2), x1 = Math.round(W / 2 - (dw + gap + sw) / 2);
+    this.botonGrande(g, txtD, H * 0.24 + 76, () => { this.cambiarDisparo(); sonar("boton"); }, "#34363d", x1, dw);
+    this.selectorIdioma(g, x1 + dw + gap, Math.round(H * 0.24 + 72), 2);
     this.botonGrande(g, t("reiniciar"), H * 0.24 + 122, () => this.empezar(), "#872a26");
   }
 

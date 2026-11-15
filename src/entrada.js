@@ -1,10 +1,14 @@
 // Controles: joystick táctil fijo abajo a la izquierda y teclado para probar en el ordenador.
 // Cualquier toque en la mitad izquierda de la pantalla (fuera de los botones) mueve el joystick.
+// En disparo manual, la mitad derecha maneja el joystick de apuntar (abajo a la derecha).
 
 export const entrada = {
   mx: 0, my: 0,                 // dirección de movimiento, longitud 0..1
   stick: null,                  // { id, ox, oy, x, y } en píxeles del juego mientras se toca
   base: { x: 50, y: 250 },      // centro fijo del joystick (lo coloca la interfaz)
+  manual: false,                // disparo manual: hay joystick de apuntar
+  apunta: null,                 // { id, x, y } mientras se toca el joystick de apuntar
+  baseApunta: { x: 550, y: 250 },
   zonaStick: 0.5,               // fracción izquierda de la pantalla que controla el joystick
   ancho: 600,                   // ancho de la pantalla en píxeles de juego
   botones: [],                  // zonas tocables que dibuja la interfaz cada fotograma
@@ -28,19 +32,24 @@ export function iniciarEntrada(canvas, aJuego) {
     }
     if (!entrada.stick && p.x < entrada.ancho * entrada.zonaStick) {
       entrada.stick = { id: e.pointerId, ox: entrada.base.x, oy: entrada.base.y, x: p.x, y: p.y };
-      canvas.setPointerCapture?.(e.pointerId);
+      try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* puntero simulado */ }
+    } else if (entrada.manual && !entrada.apunta && p.x >= entrada.ancho * entrada.zonaStick) {
+      entrada.apunta = { id: e.pointerId, x: p.x, y: p.y };
+      try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* puntero simulado */ }
     }
   }, { passive: false });
 
   canvas.addEventListener("pointermove", (e) => {
-    const s = entrada.stick;
-    if (!s || s.id !== e.pointerId) return;
-    const p = punto(e);
-    s.x = p.x; s.y = p.y;
+    for (const s of [entrada.stick, entrada.apunta]) {
+      if (!s || s.id !== e.pointerId) continue;
+      const p = punto(e);
+      s.x = p.x; s.y = p.y;
+    }
   });
 
   const soltar = (e) => {
     if (entrada.stick && entrada.stick.id === e.pointerId) entrada.stick = null;
+    if (entrada.apunta && entrada.apunta.id === e.pointerId) entrada.apunta = null;
   };
   canvas.addEventListener("pointerup", soltar);
   canvas.addEventListener("pointercancel", soltar);
@@ -51,7 +60,7 @@ export function iniciarEntrada(canvas, aJuego) {
     for (const f of entrada.alPulsar) f(e.code);
   });
   window.addEventListener("keyup", (e) => entrada.teclas.delete(e.code));
-  window.addEventListener("blur", () => { entrada.teclas.clear(); entrada.stick = null; });
+  window.addEventListener("blur", () => { entrada.teclas.clear(); entrada.stick = null; entrada.apunta = null; });
   // Evita el menú de mantener pulsado y el zoom con dos dedos.
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   document.addEventListener("gesturestart", (e) => e.preventDefault());
@@ -78,4 +87,17 @@ export function leerMovimiento() {
     if (l > 3) { x = (dx / l) * k; y = (dy / l) * k; }
   }
   entrada.mx = x; entrada.my = y;
+}
+
+// Disparo manual: ángulo hacia el que se apunta (radianes) o null si no se apunta.
+// En el ordenador también vale con I J K L.
+export function leerApuntado() {
+  const a = entrada.apunta;
+  if (a) {
+    const dx = a.x - entrada.baseApunta.x, dy = a.y - entrada.baseApunta.y;
+    return Math.hypot(dx, dy) > 5 ? Math.atan2(dy, dx) : null;
+  }
+  const t = entrada.teclas;
+  const x = (t.has("KeyL") ? 1 : 0) - (t.has("KeyJ") ? 1 : 0), y = (t.has("KeyK") ? 1 : 0) - (t.has("KeyI") ? 1 : 0);
+  return x || y ? Math.atan2(y, x) : null;
 }
