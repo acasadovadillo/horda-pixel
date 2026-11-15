@@ -3,6 +3,8 @@
 -- Se dibuja con un esqueleto (cadera, torso, cuello, miembros con ángulos) y cápsulas
 -- sombreadas con luz de arriba a la izquierda; la cabeza es una pieza a mano.
 -- Lienzo 40x40, suelas en y = 38, cuerpo centrado en x = 20.
+-- 8 direcciones: el perfil e es el dibujo de siempre; s, se, ne y n salen del mismo esqueleto
+-- montado en 3D (ver "vistas s, se, ne, n" más abajo). morir es una sola.
 local L = dofile(app.params.lib)
 
 ---------------------------------------------------------------- colores
@@ -255,7 +257,9 @@ local function fondo(img)
 end
 
 -- Dibuja la pose. Con P.suelo, la apoya en y = 38 (menos P.alto en el aire).
+local POSES = {}  -- poses del perfil e: las vistas nuevas reutilizan sus ángulos
 local function pose(P, antes, despues)
+  POSES[#POSES + 1] = P
   return function(img)
     local tmp = L.imagen(40, 64)
     figura(tmp, P, 12)
@@ -358,10 +362,413 @@ cuadros[#cuadros + 1] = pose(T4)     -- 4: golpea el suelo, rebota
 cuadros[#cuadros + 1] = pose(TENDIDO(0)) -- 5: tendido
 cuadros[#cuadros + 1] = pose(TENDIDO(0), charco) -- 6: charco
 
-local ETIQUETAS = { { "andar", 1, 8 }, { "atacar", 9, 12 }, { "morir", 13, 18 } }
-local DURACIONES = {
-  0.065, 0.065, 0.065, 0.065, 0.065, 0.065, 0.065, 0.065,
-  0.10, 0.07, 0.09, 0.12,
-  0.09, 0.09, 0.11, 0.13, 0.16, 1.0,
+---------------------------------------------------------------- vistas s, se, ne, n (3D)
+-- El mismo esqueleto del perfil (ángulos de POSES) se monta en 3D y se proyecta con cámara
+-- ortográfica 3/4 desde el sur. Cada pieza es un elipsoide (o una cadena de esferas) con
+-- búfer de profundidad y normal real: la luz viene siempre de arriba a la izquierda de la pantalla.
+local ELEV = rad(24)
+local CE, SEL = cos(ELEV), sin(ELEV)
+local LX, LY, LD = -0.62, -0.66, -0.42          -- hacia la luz, en ejes de cámara (x der, y abajo, d adentro)
+do local n = sqrt(LX * LX + LY * LY + LD * LD); LX, LY, LD = LX / n, LY / n, LD / n end
+
+local V = {}                                     -- vista actual
+local W3, H3 = 40, 64
+local ZB, CB, IB = {}, {}, {}
+local function vista(phi, ox, oy)
+  V.fx, V.fy = cos(rad(phi)), sin(rad(phi))
+  V.rx, V.ry = sin(rad(phi)), -cos(rad(phi))
+  V.ox, V.oy = ox, oy
+  for k = 0, W3 * H3 - 1 do ZB[k] = 1e9; CB[k] = nil; IB[k] = 0 end
+end
+local function proy(p)
+  local wx = p[1] * V.fx + p[2] * V.rx
+  local wy = p[1] * V.fy + p[2] * V.ry
+  return V.ox + wx, V.oy - (p[3] * CE + wy * SEL), wy * CE - p[3] * SEL
+end
+local function dcam(v)
+  local wx = v[1] * V.fx + v[2] * V.rx
+  local wy = v[1] * V.fy + v[2] * V.ry
+  return wx, -(v[3] * CE + wy * SEL), wy * CE - v[3] * SEL
+end
+local function dloc(x, y, d)
+  local wy, wz = -y * SEL + d * CE, -y * CE - d * SEL
+  return x * V.fx + wy * V.fy, x * V.rx + wy * V.ry, wz
+end
+local function suma(p, d, k) return { p[1] + d[1] * k, p[2] + d[2] * k, p[3] + d[3] * k } end
+local function dif(a, b) return { a[1] - b[1], a[2] - b[2], a[3] - b[3] } end
+local function pp(a, b) return a[1] * b[1] + a[2] * b[2] + a[3] * b[3] end
+-- dirección local desde un ángulo sagital (0 = abajo, 90 = adelante) y una abertura lateral
+local function dir(a, b, lado)
+  local ca, sa, cb, sb = cos(rad(a)), sin(rad(a)), cos(rad(b or 0)), sin(rad(b or 0))
+  return { sa * cb, (lado or 1) * sb, -ca * cb }
+end
+
+local I = { p = { 0, 0, 0 }, n = { 0, 0, 0 } }   -- datos del fragmento para los materiales
+local function escribir(x, y, depth, id, mat)
+  if x < 0 or y < 0 or x >= W3 or y >= H3 then return end
+  local k = y * W3 + x
+  if depth >= ZB[k] then return end
+  I.x, I.y = x, y
+  local c = mat(I)
+  if c then ZB[k] = depth; CB[k] = c; IB[k] = id end
+end
+
+-- Elipsoide de centro c (local), ejes locales e1, e2, e3 y radios r1, r2, r3.
+local function elipsoide(id, c, e, r, mat, info)
+  local cx, cy, cd = proy(c)
+  local E = {}
+  for i = 1, 3 do local x, y, d = dcam(e[i]); E[i] = { x / r[i], y / r[i], d / r[i] } end
+  local A = E[1][3] ^ 2 + E[2][3] ^ 2 + E[3][3] ^ 2
+  local rm = math.max(r[1], r[2], r[3])
+  for y = floor(cy - rm - 1), math.ceil(cy + rm + 1) do
+    for x = floor(cx - rm - 1), math.ceil(cx + rm + 1) do
+      local dx, dy = x + 0.5 - cx, y + 0.5 - cy
+      local B, C = 0, -1
+      local m = {}
+      for i = 1, 3 do
+        m[i] = dx * E[i][1] + dy * E[i][2]
+        B = B + 2 * m[i] * E[i][3]; C = C + m[i] * m[i]
+      end
+      local disc = B * B - 4 * A * C
+      if disc >= 0 then
+        local dd = (-B - sqrt(disc)) / (2 * A)
+        local q1, q2, q3 = m[1] + dd * E[1][3], m[2] + dd * E[2][3], m[3] + dd * E[3][3]
+        local gx = q1 * E[1][1] + q2 * E[2][1] + q3 * E[3][1]
+        local gy = q1 * E[1][2] + q2 * E[2][2] + q3 * E[3][2]
+        local gd = q1 * E[1][3] + q2 * E[2][3] + q3 * E[3][3]
+        local gl = sqrt(gx * gx + gy * gy + gd * gd)
+        gx, gy, gd = gx / gl, gy / gl, gd / gl
+        I.q1, I.q2, I.q3 = q1, q2, q3
+        I.luz = gx * LX + gy * LY + gd * LD
+        I.n[1], I.n[2], I.n[3] = dloc(gx, gy, gd)
+        local ox, oy, oz = dloc(dx, dy, dd)
+        I.p[1], I.p[2], I.p[3] = c[1] + ox, c[2] + oy, c[3] + oz
+        I.t = info
+        escribir(x, y, cd + dd, id, mat)
+      end
+    end
+  end
+end
+local EJES = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } }
+-- Miembro: cadena de esferas de a a b con radio de ra a rb; el material recibe t en I.t.
+local function miembro(id, a, b, ra, rb, mat)
+  local l = sqrt(pp(dif(b, a), dif(b, a)))
+  local n = math.max(1, math.ceil(l / 0.3))
+  for k = 0, n do
+    local t = k / n
+    local r = ra + (rb - ra) * t
+    elipsoide(id, { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t },
+      EJES, { r, r, r }, mat, t)
+  end
+end
+
+-- luz del fragmento en la escala de tono() (centro de la forma ~ 0)
+local function luz3() return (I.luz - 0.22) * 1.5 + (V.luz or 0) end
+local function piel3(base) return function() return tono(PA, base, luz3()) end end
+
+-- partes 3D -----------------------------------------------------------------
+local function pierna3(id, cad, Lg, base)
+  local lado = cad[2] > 0 and 1 or -1
+  local k = suma(cad, dir(Lg[1], 5, lado), 8.5)
+  local a = suma(k, dir(Lg[2], 1, lado), 8.5)
+  local f = suma(a, dir(Lg[3]), 2.6)
+  miembro(id, cad, k, 1.8, 1.45, function()
+    local t = I.t
+    if base == 4 and t > 0.45 and t < 0.68 and I.n[2] > 0.35 then
+      if t > 0.5 and t < 0.62 then return tono(PA, 3, luz3()) end
+      return PN[1]
+    end
+    return tono(PN, base, luz3())
+  end)
+  local corte = base == 4 and 0.62 or 0.9
+  miembro(id, k, a, 1.35, 1.05, function()
+    local c = corte + (hash(I.x, I.y) - 0.5) * 0.22
+    if I.t > c then return tono(PA, base, luz3()) end
+    return tono(PN, base, luz3())
+  end)
+  miembro(id, a, f, 0.95, 0.8, function()
+    if I.t > 0.8 then return PA[2] end
+    return tono(PA, base - 1, luz3())
+  end)
+end
+
+local function brazo3(id, s, A, abre, lado, base)
+  local e = suma(s, dir(A[1], abre[1], lado), 6.5)
+  local w = suma(e, dir(A[2], abre[2], lado), 6)
+  local h = suma(w, dir(A[3], abre[3], lado), 2.2)
+  miembro(id, s, e, 1.3, 1.0, piel3(base))
+  miembro(id, e, w, 1.05, 0.95, function()
+    if base == 4 and lado > 0 and I.t > 0.3 and I.t < 0.55 and I.n[3] < -0.1 then return CA[2] end
+    return tono(PA, base, luz3())
+  end)
+  miembro(id, w, h, 0.95, 0.75, piel3(base - 1))
+end
+
+-- tronco: pelvis, vientre, costillar y hombros como elipsoides en el marco del torso
+local function torso3(hip, T, len)
+  local s = dir(T)
+  local c = { s[3], 0, -s[1] }                  -- pecho (adelante y abajo)
+  local r = { 0, 1, 0 }
+  local ejes = { s, r, c }
+  local function mat()
+    local d = dif(I.p, hip)
+    local a, l = pp(d, s), pp(d, r)
+    local nc = pp(I.n, c)
+    local lz = luz3()
+    if a < 0.9 + hash(floor(l * 2), 1) * 0.5 then return tono(PN, 3, lz) end         -- cintura del pantalón
+    local top = len - 0.2
+    if a > top - 1.6 then                                                             -- hombros
+      if math.abs(math.abs(l) - 1.6) < 0.6 and a < top + 0.6 then return tono(TA, 3, lz) end -- tirantes
+      return tono(PA, 4, lz)
+    end
+    if nc > 0.15 and a > top - 3.4 + math.abs(l) * 0.35 then return tono(PA, 4, lz) end      -- escote
+    if nc < -0.2 then                                                                -- espalda
+      local sl, sa = math.abs(l) - 1.9, a - (top - 3.0)                              -- omóplatos
+      local esc = a > top - 4.6 + hash(floor(l * 1.5), 9) * 1.0                      -- escote trasero roto
+      local col
+      if esc then col = tono(PA, 3, lz) else col = tono(TA, 3, lz) end
+      if math.abs(l) < 0.45 then                                                      -- columna
+        if floor(a) % 2 == 0 then return esc and PA[4] or TA[4] end
+        return MASOSC[col]
+      end
+      if sl > -1.3 and sl < 1.0 and sa > -2.0 and sa < 1.3 then
+        if sa < -1.3 or sl < -0.9 then return MASOSC[col] end
+        if sa > 0.5 then return esc and tono(PA, 4, lz + 0.5) or tono(TA, 4, lz + 0.5) end
+      end
+      if not esc and a < 2.0 + hash(I.x, 3) * 0.8 then return tono(TA, 2, lz) end
+      return col
+    end
+    local an = a / len
+    if an > 0.3 and an < 0.66 and nc > -0.05 and l > -0.6 + hash(floor(a), 5) * 0.8 then -- roto: costillas
+      if floor(a + math.abs(l) * 0.4) % 2 == 0 then return PA[2] end
+      return tono(PA, 4, lz)
+    end
+    if a < 2.0 + hash(I.x, 3) * 0.8 then return tono(TA, 2, lz) end                   -- bajo sucio
+    local col = tono(TA, 3, lz)
+    if hash(I.x * 3, I.y * 7) > 0.86 then col = MASOSC[col] end                       -- mugre
+    if an > 0.55 and an < 0.75 and nc > 0 and hash(I.x, I.y * 2) > 0.45 then col = SA[2] end
+    return col
+  end
+  elipsoide(1, suma(hip, s, 1.0), ejes, { 2.0, 2.6, 2.0 }, mat)
+  elipsoide(1, suma(hip, s, 4.2), ejes, { 2.6, 2.1, 1.7 }, mat)
+  elipsoide(1, suma(hip, s, 7.2), ejes, { 2.9, 2.7, 2.2 }, mat)
+  elipsoide(1, suma(hip, s, len - 1.1), ejes, { 1.5, 2.9, 1.9 }, mat)
+  return s, c
+end
+
+-- cabezas a mano para cada vista: { ax, ay = centro de la cabeza en la pieza, f = filas }
+local CAB3 = {
+  s = { ax = 3, ay = 3, f = pieza("cab_s", 7, {
+    "..445..",
+    ".34554.",
+    "345443.",
+    "i3e4e22",
+    "i2o3o2i",
+    ".2sBs2.",
+    "..2X2..",
+  }) },
+  se = { ax = 3, ay = 3, f = pieza("cab_se", 7, {
+    "..445..",
+    ".34554.",
+    "h34444.",
+    "h3e44e.",
+    "i3o32o.",
+    ".h2sB2.",
+    "...2X..",
+  }) },
+  ne = { ax = 3, ay = 3, f = pieza("cab_ne", 7, {
+    "..i44..",
+    ".hi455.",
+    "hhi443.",
+    "hih343.",
+    "hhi232.",
+    ".hih2..",
+    "..i....",
+  }) },
+  n = { ax = 3, ay = 3, frente = 4, f = pieza("cab_n", 7, {
+    "..343..",
+    ".3i43i.",
+    "i3ii3hh",
+    "hihihih",
+    "hihhihh",
+    "ihihhi.",
+    ".hi.hi.",
+    ".h..i..",
+  }) },
 }
-L.construir("corredor", 40, 40, cuadros, ETIQUETAS, DURACIONES, { pies = { 20, 38 } })
+local function cabeza3(H, centro)
+  local cx, cy, cd = proy(centro)
+  local ox, oy = floor(cx + 0.5) - H.ax, floor(cy + 0.5) - H.ay
+  for yy, fila in ipairs(H.f) do
+    for xx = 1, #fila do
+      local ch = fila:sub(xx, xx)
+      if ch ~= "." then
+        local col = MH[ch]
+        local z = (H.frente and yy > H.frente) and -100 or cd - 1.6
+        escribir(ox + xx - 1, oy + yy - 1, z, 2, function() return col end)
+      end
+    end
+  end
+end
+
+local CALCO = {
+  ["1"] = PA[1], ["2"] = PA[2], ["3"] = PA[3], ["4"] = PA[4], ["5"] = PA[5],
+  a = TA[1], b = TA[2], c = TA[3], d = TA[4], e = TA[5], S = SA[2], s = SA[1], n = PN[2], N = PN[3],
+}
+-- espalda (vista n): trapecios, omóplatos y columna; la camiseta rota empieza abajo
+local ESPALDA = { ax = 4, ay = 0, f = pieza("espalda", 9, {
+  "44c545c33",
+  "45c444c33",
+  "4dc434cc3",
+  "cd54243bb",
+  "cd43233bb",
+  "cdc434cbb",
+  "cdc323cbb",
+  "cddc4cbbb",
+  "cdcbcbcba",
+  "ccbccbbba",
+  "bcbbbbbaa",
+  "bbbbabbaa",
+}) }
+-- pecho (vista s): tirantes, escote, costillas al aire en su lado derecho, sangre seca
+local PECHO = { ax = 4, ay = 0, f = pieza("pecho", 9, {
+  "45c444c43",
+  "4dc444cc3",
+  "dcd444ccb",
+  "2424ddccb",
+  "4343cScbb",
+  "2424cSSbb",
+  "4343dcSbb",
+  "2c2ccccbb",
+  "bcbccbcba",
+  "bbbbbbbaa",
+}) }
+
+-- brazos propios del ataque de frente (por pose del perfil)
+local GOLPE_S = {}
+
+-- Ajustes de cada vista sobre la pose del perfil (trampas de dibujante para que se lea).
+local AJ = {
+  s  = { incl = 0.45, cuello = 0, cab = { 1.0, 2.6 }, atras = true, calco = PECHO, golpe = GOLPE_S, luz = 0.3, flex = 14 },
+  se = { incl = 0.8, cuello = 0, cab = { 1.0, 1.8 }, luz = 0.15, flex = 6 },
+  ne = { incl = 1.0, cuello = -15, cab = { 0.5, 0.6 }, flex = 6 },
+  n  = { incl = 1.0, cuello = -22, cab = { 1.4, 1.4 }, bombeo = true, calco = ESPALDA, flex = 14 },
+}
+local function figura3(P, H, aj, anda)
+  local hip = { 0, 0, 17 }
+  local len = P.largo or 10.5
+  local T = 180 - (180 - P.torso) * aj.incl
+  local s = dir(T)
+  local top = suma(hip, s, len)
+  local _, _, dc = proy(suma(hip, s, 5))
+  local function base(p) local _, _, d = proy(p); return d > dc + 0.6 and 3 or 4 end
+  -- lado cercano del perfil = derecha (+r); lejano = izquierda (-r)
+  local hN, hF = { 0, 2.0, 17 }, { 0, -2.0, 17 }
+  local sN, sF = suma(top, { 0, 1, 0 }, 2.6), suma(top, { 0, -1, 0 }, 2.6)
+  sN, sF = suma(sN, s, -0.6), suma(sF, s, -0.6)
+  local fl = aj.flex or 0
+  local function flex(Lg) return { Lg[1] + fl, Lg[2] - fl * 0.8, Lg[3] } end
+  pierna3(5, hN, flex(P.pN), base(hN))
+  pierna3(6, hF, flex(P.pF), base(hF))
+  torso3(hip, T, len)
+  elipsoide(1, sN, EJES, { 1.15, 1.15, 1.15 }, piel3(4))
+  elipsoide(1, sF, EJES, { 1.15, 1.15, 1.15 }, piel3(4))
+  local nb = suma(top, s, -0.4)
+  local ne = suma(nb, dir((P.cuello or 125) + aj.cuello), 3)
+  miembro(7, nb, ne, 1.05, 0.95, piel3(3))
+  cabeza3(H, suma(suma(ne, { 1, 0, 0 }, aj.cab[1]), { 0, 0, 1 }, aj.cab[2]))
+  local bN, bF, abre = P.bN, P.bF, { 16, 10, 6 }
+  if aj.golpe and aj.golpe[P] then
+    local g = aj.golpe[P]
+    bN, bF, abre = g[1], g[2], g[3]
+  end
+  if aj.atras and anda then
+    -- de frente: brazos echados atrás y abiertos, se ven a los lados del tronco
+    local a1, a2 = -26 + (P.bN[1] + 48) * 1.1, -26 + (P.bF[1] + 48) * 1.1
+    bN, bF, abre = { a1, a1 - 8, a1 + 4 }, { a2, a2 - 8, a2 + 4 }, { 30, 22, 10 }
+  end
+  if aj.bombeo and anda then
+    -- de frente y de espaldas: los brazos bombean a los lados, codo doblado
+    local a1, a2 = (P.bN[1] + 48) * 2.2 - 12, (P.bF[1] + 48) * 2.2 - 12
+    bN, bF, abre = { a1, a1 + 85, a1 + 95 }, { a2, a2 + 85, a2 + 95 }, { 28, 6, 0 }
+  end
+  if aj.calco then
+    -- calco pintado a mano sobre el tronco (solo donde lo de delante es el tronco)
+    local D = aj.calco
+    local x0, y0 = proy(suma(top, s, 0.6))
+    local ox, oy = floor(x0 + 0.5) - D.ax, floor(y0 + 0.5) - D.ay
+    for yy, fila in ipairs(D.f) do for xx = 1, #fila do
+      local ch = fila:sub(xx, xx)
+      local x, y = ox + xx - 1, oy + yy - 1
+      if ch ~= "." and x >= 0 and y >= 0 and x < W3 and y < H3 and IB[y * W3 + x] == 1 then
+        CB[y * W3 + x] = CALCO[ch]
+      end
+    end end
+  end
+  brazo3(3, sN, bN, abre, 1, base(sN))
+  brazo3(4, sF, bF, abre, -1, base(sF))
+end
+
+-- Pasa el búfer a una imagen: sombra de 1 px que lo de delante arroja abajo a la derecha.
+local function revelar(img)
+  for y = 0, H3 - 1 do for x = 0, W3 - 1 do
+    local k = y * W3 + x
+    local c = CB[k]
+    if c then
+      local function delante(xx, yy)
+        if xx < 0 or yy < 0 then return false end
+        local j = yy * W3 + xx
+        return CB[j] and IB[j] ~= IB[k] and ZB[j] < ZB[k] - 0.9
+      end
+      if delante(x - 1, y) or delante(x, y - 1) or delante(x + 1, y) or delante(x, y + 1) then c = MASOSC[c] or c end
+      img:drawPixel(x, y, c)
+    end
+  end end
+end
+
+local VISTAS = { s = -90, se = -45, ne = 45, n = 90 }
+local OX = { s = 20, se = 19, ne = 19, n = 20 }
+local function pose3(dirn, P, anda)
+  return function(img)
+    vista(VISTAS[dirn], OX[dirn], 50)
+    V.luz = AJ[dirn].luz
+    figura3(P, CAB3[dirn], AJ[dirn], anda)
+    local tmp = L.imagen(W3, H3)
+    revelar(tmp)
+    local dy = (38 - (P.alto or 0)) - fondo(tmp)
+    L.pegar(img, tmp, 0, dy)
+    contorno(img, 38)
+  end
+end
+
+GOLPE_S[POSES[9]] = { { -30, -55, -70 }, { -30, -55, -70 }, { 50, 40, 30 } }   -- abre los brazos atrás
+GOLPE_S[POSES[10]] = { { 100, 75, 60 }, { 105, 80, 65 }, { 38, 26, 18 } }     -- zarpazo hacia la cámara
+GOLPE_S[POSES[11]] = { { 45, 25, 10 }, { 55, 30, 15 }, { 10, -24, -34 } }         -- arrastra las garras abajo
+---------------------------------------------------------------- montaje
+local E = cuadros
+local final, ETIQUETAS, DURACIONES = {}, {}, {}
+local function bloque(nombre, lista, dur)
+  local a = #final + 1
+  for i, f in ipairs(lista) do final[#final + 1] = f; DURACIONES[#DURACIONES + 1] = dur[i] end
+  ETIQUETAS[#ETIQUETAS + 1] = { nombre, a, #final }
+end
+local DA = { 0.065, 0.065, 0.065, 0.065, 0.065, 0.065, 0.065, 0.065 }
+local DT = { 0.10, 0.07, 0.09, 0.12 }
+local function serie(dirn, desde, n)
+  local t = {}
+  for i = desde, desde + n - 1 do t[#t + 1] = pose3(dirn, POSES[i], desde == 1) end
+  return t
+end
+local function rango(a, b) local t = {}; for i = a, b do t[#t + 1] = E[i] end; return t end
+bloque("andar_s", serie("s", 1, 8), DA)
+bloque("andar_se", serie("se", 1, 8), DA)
+bloque("andar_e", rango(1, 8), DA)
+bloque("andar_ne", serie("ne", 1, 8), DA)
+bloque("andar_n", serie("n", 1, 8), DA)
+bloque("atacar_s", serie("s", 9, 4), DT)
+bloque("atacar_se", serie("se", 9, 4), DT)
+bloque("atacar_e", rango(9, 12), DT)
+bloque("atacar_ne", serie("ne", 9, 4), DT)
+bloque("atacar_n", serie("n", 9, 4), DT)
+bloque("morir", rango(13, 18), { 0.09, 0.09, 0.11, 0.13, 0.16, 1.0 })
+L.construir("corredor", 40, 40, final, ETIQUETAS, DURACIONES, { pies = { 20, 38 } })

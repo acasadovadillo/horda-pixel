@@ -288,6 +288,7 @@ export class Juego {
     this.zombis.push({
       tipo, def, spr, x, y, vida: def.vida * fuerza, vidaMax: def.vida * fuerza,
       vel: def.velocidad * rnd(0.85, 1.15), anim: rnd(0, 2), voltear: false,
+      variante: rndInt(0, spr.variantes.length - 1),    // ropa y pelo distintos
       ataque: 0, espera: rnd(0, 0.5), golpe: 0, muerto: 0, barra: 0,
       atasco: 0, desvio: 0, aparece: 0.7, lado: Math.random() < 0.5 ? 1 : -1, gruñe: rnd(2, 8),
     });
@@ -643,6 +644,7 @@ export class Juego {
     // Barras de vida de zombis heridos y números de daño (encima de la oscuridad, para que se lean)
     g.save();
     g.translate(-cx, -cy);
+    this.dibujarOjos(g);
     for (const z of this.zombis) {
       if (z.muerto || z.barra <= 0 || z.vida >= z.vidaMax) continue;
       const w = 16, x = Math.round(z.x - w / 2), y = Math.round(z.y - 44);
@@ -762,7 +764,28 @@ export class Juego {
       g.fillStyle = "#594430"; g.fillRect(Math.round(z.x) - 6, Math.round(z.y) - 3, 5, 1); g.fillRect(Math.round(z.x) + 2, Math.round(z.y) - 3, 4, 1);
       return;
     }
-    dibujarAnclado(g, spr, i, z.x, z.y, pies, z.voltear, z.golpe > 0 ? spr.blanca : spr.img);
+    const v = spr.variantes[z.variante] || spr.variantes[0];
+    dibujarAnclado(g, spr, i, z.x, z.y, pies, z.voltear, z.golpe > 0 ? spr.blanca : v.img);
+    z.ojos = { i, pies };          // para pintar los ojos brillando encima de la oscuridad
+  }
+
+  // Ojos amarillos de los zombis vivos, por encima de la capa de oscuridad (brillan en el atardecer).
+  dibujarOjos(g) {
+    for (const z of this.zombis) {
+      if (z.muerto || z.aparece > 0 || !z.ojos || !this.enPantalla(z.x, z.y)) continue;
+      const v = z.spr.variantes[z.variante] || z.spr.variantes[0];
+      dibujarAnclado(g, z.spr, z.ojos.i, z.x, z.y, z.ojos.pies, z.voltear, v.ojos);
+    }
+    // Un halo suave: la misma capa sumada encima, desplazada medio píxel en cada sentido
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 0.35;
+    for (const z of this.zombis) {
+      if (z.muerto || z.aparece > 0 || !z.ojos || !this.enPantalla(z.x, z.y)) continue;
+      const v = z.spr.variantes[z.variante] || z.spr.variantes[0];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, -1]]) dibujarAnclado(g, z.spr, z.ojos.i, z.x + dx, z.y + dy, z.ojos.pies, z.voltear, v.ojos);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
   }
 
   dibujarObjeto(g, o) {

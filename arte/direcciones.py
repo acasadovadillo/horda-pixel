@@ -12,9 +12,25 @@ DIRS = [("n", False, -90), ("ne", False, -45), ("e", False, 0), ("se", False, 45
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets")
 
 
-def cargar(carpeta, nombre):
+def colorear(im, nombre, variante=0):
+    """Como en el juego: ropa de la variante (assets/variantes.json) y ojos en amarillo."""
+    try: d = json.load(open(os.path.join(ASSETS, "variantes.json"))).get(nombre)
+    except OSError: d = None
+    if not d: return im
+    cambios = {tuple(int(a[i:i + 2], 16) for i in (0, 2, 4)): tuple(int(b[i:i + 2], 16) for i in (0, 2, 4))
+               for a, b in d["variantes"][variante].items()}
+    cambios[tuple(int(d["ojo"][i:i + 2], 16) for i in (0, 2, 4))] = (255, 214, 64)
+    px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            c = px[x, y]
+            if c[3] and c[:3] in cambios: px[x, y] = cambios[c[:3]] + (255,)
+    return im
+
+
+def cargar(carpeta, nombre, variante=0):
     d = json.load(open(os.path.join(carpeta, nombre + ".json")))
-    im = Image.open(os.path.join(carpeta, nombre + ".png")).convert("RGBA")
+    im = colorear(Image.open(os.path.join(carpeta, nombre + ".png")).convert("RGBA"), nombre, variante)
     frames = [im.crop((f["frame"]["x"], f["frame"]["y"], f["frame"]["x"] + f["frame"]["w"], f["frame"]["y"] + f["frame"]["h"]))
               for f in d["frames"]]
     tags = {t["name"]: (t["from"], t["to"]) for t in d["meta"]["frameTags"]}

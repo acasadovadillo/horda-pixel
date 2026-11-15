@@ -54,10 +54,50 @@ export async function cargarSprites(base = "assets/") {
   for (const n of ["jugador", "zombi", "zombi_b", "zombi_c", "corredor", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
     S[n].blanca = teñida(S[n].img, "#ffffff");
   }
+  await prepararVariantes(base);
   for (const n of ["palotes", "cifras_sangre"]) S[n].blanca = teñida(S[n].img, "#f2ece4");
   for (const n of ["jugador", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
     S[n].roja = teñida(S[n].img, "#ff4a4a");
   }
+}
+
+// Variantes de color de los zombis (assets/variantes.json, de arte/variantes.py): otra ropa y otro pelo.
+// Cada variante guarda su hoja recoloreada y una capa solo con los ojos en amarillo, que el juego
+// pinta encima de la oscuridad para que brillen.
+const AMARILLO = [255, 214, 64];
+async function prepararVariantes(base) {
+  let datos = {};
+  try { datos = await fetch(base + "variantes.json").then((r) => (r.ok ? r.json() : {})); } catch (e) { /* sin variantes */ }
+  for (const n of ["zombi", "zombi_b", "zombi_c", "corredor"]) {
+    const d = datos[n] || { ojo: null, variantes: [{}] };
+    S[n].variantes = d.variantes.map((cambios) => recolorear(S[n].img, cambios, d.ojo));
+  }
+}
+
+function recolorear(img, cambios, ojo) {
+  const w = img.width, h = img.height;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const o = document.createElement("canvas"); o.width = w; o.height = h;
+  const g = c.getContext("2d"), go = o.getContext("2d");
+  g.drawImage(img, 0, 0);
+  const px = g.getImageData(0, 0, w, h), ojos = go.createImageData(w, h);
+  const mapa = new Map(Object.entries(cambios).map(([a, b]) => [parseInt(a, 16), [parseInt(b.slice(0, 2), 16), parseInt(b.slice(2, 4), 16), parseInt(b.slice(4, 6), 16)]]));
+  const ojoN = ojo ? parseInt(ojo, 16) : -1;
+  const p = px.data;
+  for (let i = 0; i < p.length; i += 4) {
+    if (!p[i + 3]) continue;
+    const k = (p[i] << 16) | (p[i + 1] << 8) | p[i + 2];
+    if (k === ojoN) {
+      [p[i], p[i + 1], p[i + 2]] = AMARILLO;
+      ojos.data.set([...AMARILLO, 255], i);
+      continue;
+    }
+    const n = mapa.get(k);
+    if (n) { p[i] = n[0]; p[i + 1] = n[1]; p[i + 2] = n[2]; }
+  }
+  g.putImageData(px, 0, 0);
+  go.putImageData(ojos, 0, 0);
+  return { img: c, ojos: o };
 }
 
 // Punto de anclaje de un sprite en el fotograma i (o el valor por defecto si no existe).

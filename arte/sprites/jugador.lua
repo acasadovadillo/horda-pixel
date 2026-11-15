@@ -426,9 +426,450 @@ foto(tendido())
 -- 6 con charco
 foto(tendido({ fondo = charco }))
 
-for i, q in ipairs(hombros) do print("  hombro " .. i .. ": " .. q[1] .. ", " .. q[2]) end
 
-L.construir("jugador", W, H, fotos,
-  { { "quieto", 1, 4 }, { "correr", 5, 12 }, { "morir", 13, 18 } },
-  { 0.22, 0.22, 0.22, 0.22, 0.075, 0.075, 0.075, 0.075, 0.075, 0.075, 0.075, 0.075, 0.09, 0.09, 0.11, 0.13, 0.16, 1.0 },
-  { pies = { 20, 38 }, hombro = hombros })
+---------------------------------------------------------------- 8 direcciones
+-- Vistas s (de frente), se (3/4 de frente), ne (3/4 de espaldas) y n (de espaldas).
+-- Mismo personaje que la vista e: cabeza, torso y mochila pintados a mano por vista;
+-- las piernas salen de un esqueleto por fases (el mismo ciclo que la vista e) y se pintan
+-- con las mismas cápsulas y la misma luz. La luz viene siempre de arriba a la izquierda.
+local fotosE, hombrosE = fotos, hombros
+
+local MAPA8 = {
+  h = PE[1], i = PE[2], j = PE[3], k = PE[4],
+  a = PI[1], b = PI[2], c = PI[3], d = PI[4], e = PI[5],
+  x = BARBA, X = BARBA2, o = TI[1], O = TI[2],
+  ["1"] = CH[1], ["2"] = CH[2], ["3"] = CH[3], ["4"] = CH[4], ["5"] = CH[5],
+  m = CU[1], n = CU[2], y = CU[3], z = CU[4], Z = CU[5],
+  F = CQ[1], G = CQ[2], Q = CQ[3], R = CQ[4],
+  u = TE[1], U = TI[3], s = CU[3], S = CU[4],
+}
+
+-- Pinta un mapa; las filas con y <= corte suben «sube» px (respiración del pecho).
+local CIZ, CIZY = 0, 0        -- cizalla de la inclinación al correr (se, ne)
+local function pintar8(img, filas, ox, oy, sube, corte)
+  for r, fila in ipairs(filas) do
+    local y = oy + r - 1
+    local yy = y
+    local ox = ox + red((21.5 + CIZY - y) * CIZ)
+    if sube and sube ~= 0 and y <= corte then yy = y - sube end
+    for c = 1, #fila do
+      local ch = fila:sub(c, c)
+      if ch ~= "." and ch ~= " " then
+        local col = MAPA8[ch]
+        if col == nil then error("carácter sin color: '" .. ch .. "'") end
+        L.px(img, ox + c - 1, yy, col)
+        if sube and sube > 0 and y == corte then L.px(img, ox + c - 1, y, col) end
+      end
+    end
+  end
+end
+
+---------------------------------------------------------------- cabezas (filas y = 4..9)
+local CAB8 = {
+  s = {
+    ".jkjh.",
+    "ijjiih",
+    "hadcah",
+    "cddcbb",
+    "xdXXbX",
+    ".xxXX.",
+  },
+  se = {
+    ".jkji.",
+    "ijjidd",
+    "hcdada",
+    "hbxddc",
+    ".xxXxX",
+    "..xxX.",
+  },
+  ne = {
+    ".jkj..",
+    "ijjih.",
+    "jiihhb",
+    "iihhcb",
+    ".hhhxX",
+    "..ba..",
+  },
+  n = {
+    ".jkjh.",
+    "ijjiih",
+    "jjiihh",
+    "ciihhb",
+    ".hhhh.",
+    "..ba..",
+  },
+}
+
+---------------------------------------------------------------- torsos (filas y = 10..21)
+-- s/S correas de la mochila, z hebilla.
+local TOR8 = {
+  s = { x = 15,
+    "..44ba32..",
+    ".5S5443s2.",
+    "45S4432s21",
+    "44S4432s21",
+    "44S4432s21",
+    "34z4432z21",
+    "3444332221",
+    "3444332221",
+    "3444332221",
+    "3444332221",
+    "3444332221",
+    ".222122211",
+  },
+  se = { x = 15,
+    "...4ba2..",
+    ".55S443s.",
+    "454S423s1",
+    "444S423s1",
+    "444S423s1",
+    "344z423z1",
+    "344442321",
+    "344442321",
+    "344442321",
+    "344442321",
+    "344442321",
+    ".2221221.",
+  },
+  ne = { x = 16,
+    "...4b2...",
+    "..5543...",
+    ".455432..",
+    "44433221.",
+    "44333221.",
+    "43333221.",
+    "43433221.",
+    "43333221.",
+    "43433221.",
+    "43433211.",
+    "33333221.",
+    ".2222211.",
+  },
+  n = { x = 15,
+    "...4ab3...",
+    ".55443332.",
+    "4554433321",
+    "4443333321",
+    "4433333221",
+    "4433333221",
+    "3433332221",
+    "3433332221",
+    "3433332221",
+    "3433332211",
+    "3433332221",
+    ".222222211",
+  },
+}
+
+---------------------------------------------------------------- mochilas
+local MOCH8 = {
+  n = { dx = 16, dy = 10,
+    ".S....s.",
+    ".SzZzys.",
+    "zZZzzzyn",
+    "zZzzzyyn",
+    "zzyyyynm",
+    "yzZZzyym",
+    "yzyyyynm",
+    "yzyyyynm",
+    "yyyyynnm",
+    ".nnnnmm.",
+  },
+  ne = { dx = 13, dy = 11,
+    ".zZzy..",
+    "zZzzyn.",
+    "zzzyynm",
+    "zyZzynm",
+    "zyyyynm",
+    "yyyyynm",
+    "yyynnnm",
+    ".nnnmm.",
+  },
+  se = { dx = 12, dy = 11,
+    ".zZ",
+    "zZz",
+    "zzy",
+    "zyy",
+    "yyn",
+    "yyn",
+    ".nm",
+  },
+}
+
+---------------------------------------------------------------- botas
+local BOTA8 = {
+  frente = {     -- de frente: caña, empeine y puntera con brillo
+    "yzzy",
+    "zZzn",
+    "mnnm",
+  },
+  frenteG = {    -- más cerca de la cámara
+    ".yzy.",
+    "yzZzn",
+    "zZzyn",
+    "mnnnm",
+  },
+  punta = {      -- talón levantado: el pie se encoge
+    "yzzn",
+    "mnnm",
+  },
+  suela = {      -- de frente, pie echado atrás: se ve la suela bajo la espinilla
+    "nyyn",
+    "mOOm",
+  },
+  espalda = {    -- de espaldas: talón
+    "nyyn",
+    "yzyn",
+    "mmmm",
+  },
+  espaldaP = {   -- lejos (pie adelantado hacia el norte)
+    "nyyn",
+    "mmmm",
+  },
+  talon = {      -- de espaldas, el talón empieza a subir
+    "nyyn",
+    "OOOm",
+  },
+  suelaG = {     -- de espaldas, pie echado atrás hacia la cámara: suela grande
+    "nzyn",
+    "mOOm",
+    "mOOm",
+  },
+}
+
+local function pintarBota(img, b, ax, base)
+  local f = BOTA8[b]
+  local w = #f[1]
+  pintar8(img, f, red(ax - w / 2), base - #f + 1)
+end
+
+---------------------------------------------------------------- piernas
+-- Pierna por puntos: cadera, rodilla y tobillo ya proyectados en pantalla.
+local function piernaP(img, hx, hy, kx, ky, ax, ay, rampa, pelvis, gk)
+  local m = capa()
+  if pelvis then L.poligono(m, pelvis, M) end
+  gk = gk or 1
+  L.elipse(m, hx, hy, 2.3 * gk, 2.3, M)
+  miembro(m, hx, hy, kx, ky, 4.5 * gk, 3.7 * gk, M)
+  L.elipse(m, kx, ky, 1.8 * gk, 1.8, M)
+  if ay - 1 > ky then miembro(m, kx, ky, ax, ay - 1, 3.6 * gk, 3.0 * gk, M) end
+  volumen(m, rampa)
+  L.pegar(img, m, 0, 0)
+end
+
+-- Fases de una pierna vista de frente (s) o de espaldas (n), relativas a la cadera:
+-- { rodilla dy, tobillo dy (nil = apoyado, suela en la fila 38), bota, grosor (cerca > 1, lejos < 1), rodilla grande }
+local FASE_S = {
+  { 7.0, nil, "frente", 1.05 },        -- 0 contacto
+  { 6.6, nil, "frente", 1.0 },         -- 1 recepción (rodilla doblada)
+  { 7.2, nil, "frente", 1.0 },         -- 2 paso
+  { 7.0, 13.6, "punta", 0.95 },        -- 3 impulso: talón arriba
+  { 6.8, 8.8, "suela", 0.95 },         -- 4 vuelo: el pie se va atrás y enseña la suela
+  { 6.0, 7.6, "suela", 0.95 },         -- 5 el pie más alto
+  { 4.6, 12.6, "frenteG", 1.15, true },-- 6 la rodilla viene hacia la cámara
+  { 6.2, 15.0, "frenteG", 1.12 },      -- 7 alcanza: más baja y más grande
+}
+local FASE_N = {
+  { 6.8, nil, "espalda", 0.95 },       -- 0 contacto (el pie de delante, lejos)
+  { 6.6, nil, "espalda", 1.0 },        -- 1 recepción
+  { 7.2, nil, "espalda", 1.05 },       -- 2 paso
+  { 7.2, 13.4, "talon", 1.08 },        -- 3 impulso: el talón sube hacia la cámara
+  { 7.6, 10.6, "suelaG", 1.15 },       -- 4 vuelo: pie atrás, hacia la cámara
+  { 7.0, 9.6, "suelaG", 1.12 },        -- 5
+  { 3.0, 10.8, "espaldaP", 0.9 },      -- 6 la pierna pasa hacia delante (rodilla tapada)
+  { 5.0, 12.8, "espaldaP", 0.9 },      -- 7 alcanza (lejos, más arriba)
+}
+
+local LUZ_I = { CQ[1], CQ[2], CQ[3], CQ[4] }
+local LUZ_D = { CQ[1], CQ[2], CQ[3], CQ[3] }
+local LUZ_L = { CQ[1], CQ[2], CQ[2], CQ[3] }
+
+-- Piernas de frente o de espaldas. fi, fd = fases de la pierna izquierda y derecha de la pantalla.
+local function piernasSN(img, tabla, hy, fi, fd, quieto)
+  local lados = {
+    { hx = 17.5, ax = quieto and 17.3 or 17.5, f = fi, rampa = LUZ_I, lado = -1 },
+    { hx = 21.7, ax = quieto and 21.9 or 21.8, f = fd, rampa = LUZ_D, lado = 1 },
+  }
+  for _, l in ipairs(lados) do
+    l.q = quieto and { 7.4, nil, tabla == FASE_S and "frente" or "espalda", 1.0 } or tabla[l.f + 1]
+  end
+  -- la más cercana a la cámara se pinta la última (y lleva la pelvis)
+  table.sort(lados, function(a, b)
+    if a.q[4] ~= b.q[4] then return a.q[4] < b.q[4] end
+    return a.hx > b.hx
+  end)
+  local pelvis = { { 15.6, hy - 1.3 }, { 23.4, hy - 1.3 }, { 23.4, hy + 1.6 }, { 19.6, hy + 2.6 }, { 15.6, hy + 1.6 } }
+  for n, l in ipairs(lados) do
+    local q = l.q
+    local ay = q[2] and (hy + q[2]) or 36.5
+    local ky = hy + q[1]
+    local gk = q[4]
+    local kx = (l.hx + l.ax) / 2 + l.lado * 0.3
+    local m = capa()
+    if n == 2 then L.poligono(m, pelvis, M) end
+    L.elipse(m, l.hx, hy, 2.3 * gk, 2.3, M)
+    miembro(m, l.hx, hy, kx, ky, 4.4 * gk, 3.8 * gk, M)
+    local rk = q[5] and 2.2 or 1.8
+    L.elipse(m, kx, ky, rk * gk, rk, M)
+    if q[3] == "suela" or q[3] == "suelaG" then
+      -- espinilla encogida: el pie va hacia atrás (s) o hacia la cámara (n)
+      miembro(m, kx, ky, l.ax, ay, 3.6 * gk, 3.2 * gk, M)
+    elseif ay - 1 > ky then
+      miembro(m, kx, ky, l.ax, ay - 1, 3.6 * gk, 3.0 * gk, M)
+    end
+    volumen(m, gk < 1 and LUZ_L or l.rampa)
+    L.pegar(img, m, 0, 0)
+    local base = red(ay + 1.5)
+    if q[3] == "suela" or q[3] == "suelaG" then base = red(ay) + #BOTA8[q[3]] end
+    pintarBota(img, q[3], l.ax, base)
+  end
+end
+
+---------------------------------------------------------------- piernas en 3/4 (se, ne)
+-- Se usa el ciclo de la vista e (FASE) y se proyecta: lo que va «hacia delante» se encoge en x
+-- y se desplaza en y (hacia la cámara en se, alejándose en ne). Los pies apoyados no se mueven de la fila.
+local function piernas34(img, vista, cx, hy, fn, ff, quieto)
+  local fx = 0.62
+  local fy = vista == "se" and 0.30 or -0.30
+  local cercaDx = vista == "se" and -1.6 or 1.6     -- pierna derecha del personaje (más cerca de la cámara)
+  local orden = {
+    { dx = -cercaDx, f = ff, lejos = true },
+    { dx = cercaDx, f = fn, lejos = false },
+  }
+  local pelvis
+  do
+    local a = fy * 2
+    pelvis = { { cx - 3.4, hy - 1.4 + a }, { cx + 3.6, hy - 1.4 - a }, { cx + 3.6, hy + 1.4 - a }, { cx, hy + 2.5 }, { cx - 3.4, hy + 1.4 + a } }
+  end
+  for n, o in ipairs(orden) do
+    local hx = cx + o.dx
+    local hyy = hy + (o.lejos and -0.4 or 0.4)
+    local q
+    if quieto then q = o.lejos and { 1.4, 36.5, 0 } or { -1.0, 36.5, 0 }
+    else q = FASE[(o.f) % 8 + 1] end
+    local fwd, ay0, ang = q[1], q[2], math.rad(q[3])
+    if quieto then ang = 0 end
+    -- rodilla en el plano de la pierna (sin proyectar)
+    local kx0, ky0 = rodilla(0, hyy, fwd, ay0)
+    local planted = ay0 >= 36.0
+    local ax = hx + fwd * fx
+    local ay = planted and 36.5 or math.min(37.2, ay0 + fwd * fy)
+    local kx = hx + kx0 * fx
+    local ky = ky0 + kx0 * fy
+    -- bota: el perfil de la vista e, encogido en x y girado hacia la cámara
+    local m = capa()
+    local dx, dy = kx - ax, ky - ay
+    local d = math.sqrt(dx * dx + dy * dy)
+    if d > 0.01 then
+      miembro(m, ax + dx / d * 1.6, ay + dy / d * 1.6, ax, ay, 3.0, 3.0, M)
+    end
+    local c, s = math.cos(ang), math.sin(ang)
+    local pts = {}
+    local sx = vista == "se" and 1 or 1
+    for _, p in ipairs(PIE) do
+      local u, v = p[1] * c - p[2] * s, p[1] * s + p[2] * c
+      pts[#pts + 1] = { ax + u * 0.75 * sx, ay + v + u * fy * 0.9 }
+    end
+    L.poligono(m, pts, M)
+    -- ancho del pie hacia el lado
+    local pts2 = {}
+    for _, p in ipairs(pts) do pts2[#pts2 + 1] = { p[1] - 1, p[2] + (vista == "se" and 0.4 or -0.4) } end
+    L.poligono(m, pts2, M)
+    volumenBota(m, o.lejos and { CU[1], CU[1], CU[2], CU[3], CU[3] } or { CU[1], CU[2], CU[3], CU[4], CU[5] })
+    if vista == "ne" and not planted and fwd < 0 then
+      -- de espaldas, el pie echado atrás enseña la suela
+      for yy = 0, H - 1 do for xx = 0, W - 1 do
+        if L.opaco(m, xx, yy) and xx < ax then m:drawPixel(xx, yy, CU[1]) end
+      end end
+    end
+    -- la suela nunca baja de la fila 38
+    local baja = 0
+    for yy = H - 1, 0, -1 do
+      local hay = false
+      for xx = 0, W - 1 do if L.opaco(m, xx, yy) then hay = true; break end end
+      if hay then baja = math.max(0, yy - 38); break end
+    end
+    L.pegar(img, m, 0, -baja)
+    piernaP(img, hx, hyy, kx, ky, ax, ay, o.lejos and { CQ[1], CQ[2], CQ[2], CQ[3] } or LUZ_I, n == 2 and pelvis or nil)
+  end
+end
+
+---------------------------------------------------------------- figura por vista
+local HOMBRO8 = { s = { 20, 13 }, n = { 20, 13 }, se = { 18, 13 }, ne = { 22, 13 } }
+
+-- p = { vista, dy (desplazamiento del cuerpo), sube (pecho), moch (mochila), fi, fd (fases), quieto }
+local function figura8(img, p)
+  local v = p.vista
+  local dy, sube = p.dy or 0, p.sube or 0
+  local hy = 21.2 + dy
+  CIZ, CIZY = (not p.quieto and (v == "se" or v == "ne")) and 0.13 or 0, dy
+  local bx = p.bx or 0
+  local delante = (v == "n" or v == "ne")
+  -- mochila detrás del cuerpo (s y se)
+  if v == "se" then
+    local mo = MOCH8.se
+    pintar8(img, mo, mo.dx, mo.dy + dy + (p.moch or 0) - sube)
+  end
+  -- piernas
+  if v == "s" or v == "n" then
+    piernasSN(img, v == "s" and FASE_S or FASE_N, hy, p.fi, p.fd, p.quieto)
+  else
+    piernas34(img, v, 19.6, hy, p.fi, p.fd, p.quieto)
+  end
+  -- torso
+  local t = TOR8[v]
+  pintar8(img, t, t.x + bx, 10 + dy, sube, 16 + dy)
+  -- mochila a la espalda (n, ne)
+  if delante then
+    local mo = MOCH8[v]
+    pintar8(img, mo, mo.dx + bx, mo.dy + dy + (p.moch or 0) - sube)
+  end
+  -- cabeza
+  local cab = CAB8[v]
+  local cx = (v == "ne") and 17 or ((v == "se") and 18 or 17)
+  pintar8(img, cab, cx + bx, 4 + dy - sube + (p.caby or 0))
+  local hb = HOMBRO8[v]
+  local hx = hb[1] + red((21.5 - 13) * CIZ) + bx
+  CIZ = 0
+  return hx, hb[2] + dy - sube
+end
+
+local vistas = {}
+for _, v in ipairs({ "s", "se", "ne", "n" }) do
+  local q, c, hq, hc = {}, {}, {}, {}
+  for i = 1, 4 do
+    local img = L.imagen(W, H)
+    local x, y = figura8(img, { vista = v, sube = sube[i], moch = moch[i], quieto = true, fi = 1, fd = 1 })
+    q[i] = img; hq[i] = { x, y }
+  end
+  for i = 1, 8 do
+    local img = L.imagen(W, H)
+    local ant = bob[(i - 2) % 8 + 1]
+    local x, y = figura8(img, { vista = v, dy = 1 + bob[i], moch = ant - bob[i], fi = (i - 1) % 8, fd = (i + 3) % 8,
+      bx = (v == "s" or v == "n") and (i >= 5 and 1 or 0) or 0 })
+    c[i] = img; hc[i] = { x, y }
+  end
+  vistas[v] = { q = q, c = c, hq = hq, hc = hc }
+end
+vistas.e = { q = {}, c = {}, hq = {}, hc = {} }
+for i = 1, 4 do vistas.e.q[i] = fotosE[i]; vistas.e.hq[i] = hombrosE[i] end
+for i = 1, 8 do vistas.e.c[i] = fotosE[4 + i]; vistas.e.hc[i] = hombrosE[4 + i] end
+
+local fotos8, hombros8, etiquetas, dur = {}, {}, {}, {}
+local function anadir(nombre, lista, hs, d)
+  local desde = #fotos8 + 1
+  for i, f in ipairs(lista) do
+    fotos8[#fotos8 + 1] = f; hombros8[#hombros8 + 1] = hs[i]
+    dur[#dur + 1] = type(d) == "table" and d[i] or d
+  end
+  etiquetas[#etiquetas + 1] = { nombre, desde, #fotos8 }
+end
+for _, v in ipairs({ "s", "se", "e", "ne", "n" }) do anadir("quieto_" .. v, vistas[v].q, vistas[v].hq, 0.22) end
+for _, v in ipairs({ "s", "se", "e", "ne", "n" }) do anadir("correr_" .. v, vistas[v].c, vistas[v].hc, 0.075) end
+do
+  local mf, mh = {}, {}
+  for i = 1, 6 do mf[i] = fotosE[12 + i]; mh[i] = hombrosE[12 + i] end
+  anadir("morir", mf, mh, { 0.09, 0.09, 0.11, 0.13, 0.16, 1.0 })
+end
+
+L.construir("jugador", W, H, fotos8, etiquetas, dur, { pies = { 20, 38 }, hombro = hombros8 })

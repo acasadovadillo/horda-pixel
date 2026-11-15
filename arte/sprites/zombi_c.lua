@@ -1,4 +1,4 @@
--- zombi.lua — construye `zombi` y `zombi_b` (40x40, pies en {20,38}, miran a la derecha).
+-- zombi_c.lua — construye `zombi_c` (40x40, pies en {20,38}) en 5 direcciones: s, se, e, ne y n (+ morir).
 -- ENFOQUE HÍBRIDO POR PIEZAS: cabeza, torso, muslo, pierna, pie, brazo, antebrazo y mano son
 -- mini-sprites dibujados a mano con filas de caracteres (variante vertical y variante tumbada,
 -- más las variantes de cabeza y de pie). Cada fotograma se monta colocando las piezas sobre un
@@ -449,139 +449,6 @@ prepararColores(Z, {
   ojo = L.hex("c4c8ba"), diente = L.hex("aeab9f"),
 })
 
------------------------------------------------------------------- PIEZAS DE ZOMBI_B (mujer)
--- Melena larga castaña clara que le tapa media cara, túnica mostaza hasta medio muslo,
--- piernas desnudas y descalza. Más menuda que el hombre y con el brazo CERCANO extendido.
-local B = { l1 = 7.5, l2 = 6.7, lu = 4.8, lf = 4.7, dy = 1 }
-
-B.cabeza = {
-  up = P({
-    ".jllj.",
-    "jlljj4",
-    "ijjjE4",
-    "hij343",
-    "hij3Rr",
-    ".hi23.",
-  }, 2, 5),
-  lol = P({
-    "..jlj.",
-    ".jlljj",
-    "ijjlj4",
-    "hijjE4",
-    "hij343",
-    ".hi3Rr",
-  }, 2, 5),
-  atras = P({
-    "..j44.",
-    ".jlEe4",
-    "jlj335",
-    "ijj3RR",
-    "hij32.",
-    "hhi2..",
-  }, 3, 4),
-  tumbada = P({
-    "..345.",
-    ".j4E4R",
-    "jl4334",
-    "ijj323",
-    "hijh22",
-    ".hhh..",
-  }, 5, 3),
-}
-local MELENA = P({ "ij.", "hjj", "hjl", "hij", "hij", ".hj", ".hi" }, 1, 0)
-local MELENA_H = P({ "..hi..", "hijjj.", "ijljji", ".hijj.", "..hh.." }, 5, 2)
-B.melena = function(t, C, q, a, ctx)
-  if a.tumbado then
-    pegar(t, MELENA_H, a.cx - 5, a.cy, C.mapa)
-  else
-    local lag = max(-2, min(2, (ctx.ant and (ctx.ant.cx - a.cx) or 0)))
-    for j = 0, MELENA.h - 1 do
-      local dx = R(lag * j / (MELENA.h - 1))
-      for i = 0, MELENA.w - 1 do punto(t, a.cx - 3 + i + dx, a.cy - 2 + j, MELENA.f[j + 1]:sub(i + 1, i + 1), C.mapa) end
-    end
-  end
-end
-
-B.torso = {
-  enc = P({
-    ".....cddc.",
-    "....cdddcb",
-    "...cdddcba",
-    "...cdcccsa",
-    "..cdccbssa",
-    "..cdcbbSa.",
-    "..ccbbba..",
-    ".cdcbba...",
-    ".ccbbba...",
-    ".cdcbbba..",
-    "cdccbbba..",
-    "cdcbcbba..",
-    "cdcbcbba..",
-    "ccdbcbba..",
-    "cc.bcb.a..",
-    "c...c.....",
-  }, 0, 0, { hip = { 2, 11 }, cuello = { 6, 0 }, hombroN = { 5, 2 }, hombroF = { 7, 2 } }),
-  recto = P({
-    ".cddc..",
-    "cdddcb.",
-    "cdddcba",
-    "cdcccsa",
-    "cdccssa",
-    ".dcbbS.",
-    ".ccbba.",
-    ".cdbba.",
-    "cdcbbba",
-    "cdcbbba",
-    "cdbcbba",
-    "cdbcbba",
-    "ccdbcba",
-    "cdcbcba",
-    "cb.bc.a",
-    "c...c..",
-  }, 0, 0, { hip = { 2, 11 }, cuello = { 2, 0 }, hombroN = { 2, 2 }, hombroF = { 4, 2 } }),
-  H = P({
-    "..cccc..........",
-    ".cdddcccccddccc.",
-    "cdddccccdddcccc.",
-    "cddcsscccccccbcb",
-    "ccccsSccbccbbbbb",
-    "bbbbbbbbbbbbbbba",
-    ".aaaaaaaaaaaaaa.",
-  }, 0, 0, { hip = { 11, 4 }, cuello = { 0, 3 }, hombroN = { 2, 5 }, hombroF = { 2, 1 } }),
-}
-
-local musloVb = P({ "443", "543", "442", "432", "432", "431", "442", "431" }, 1, 0)
-local musloHb = P({ "44544444", "33343333", "12222221" }, 0, 1)
-local pantVb = P({ "442", "432", "431", "4r1", ".31", ".31", ".31" }, 1, 0)
-local pantHb = P({ "4454444", "3333333", "122221." }, 0, 1)
-B.piernaN = { musloV = musloVb, musloH = musloHb, pantV = pantVb, pantH = pantHb, pies = Z.piernaN.pies }
-B.piernaF = { musloV = musloVb, musloH = musloHb, pantV = pantVb, pantH = pantHb, pies = {} }
-for k, v in pairs(Z.piernaN.pies) do B.piernaF.pies[k] = v end
-B.piernaF.pies.alza = Z.piernaN.pies.plano
-
-B.brazoN = {      -- mangas largas mostaza con el puño roto
-  upV = P({ "dcb", "dcb", "dca", "cba", "cba", "cba" }, 1, 0),
-  upH = P({ "ddcddc", "cccbcb", "abbaab" }, 0, 1),
-  foV = P({ "dca", "cba", "cba", ".31", ".31" }, 1, 0),
-  foH = P({ "dcd44", "ccb33", "aba1." }, 0, 1),
-  manoV = Z.brazoN.manoV, manoH = Z.brazoN.manoH,
-}
-B.brazoF = B.brazoN
-
-prepararColores(B, {
-  piel = L.rampa("zombi"), ropa = L.rampa("ropa_c"), pant = hexes({ "1c1a22", "2b2833", "3d3947", "544f60" }),
-  pelo = hexes({ "2a211a", "473829", "6b563c", "8c7350" }), zapato = L.rampa("cuero"),
-  ojo = L.hex("c4c8ba"), diente = L.hex("aeab9f"),
-})
--- En `andar` ella lleva extendido el brazo cercano y colgando el lejano (al revés que él).
-B.pose = function(q, anim)
-  if anim ~= "andar" then return q end
-  local c = {}
-  for k, v in pairs(q) do c[k] = v end
-  c.bn, c.bf = q.bf, q.bn
-  return c
-end
-
 ------------------------------------------------------------------ POSES
 local CHARCO = P({
   "......sssss.......",
@@ -628,29 +495,387 @@ local MORIR = {
   { torso = "H", hip = { 20, 36 }, rise = 0, cab = { "tumbada", 0, 0 },  pn = { 34, 36, "tumbado", recta = true }, pf = { 34, 31, "tumbado", recta = true }, bn = { 86, 92 }, bf = { -150, -110 }, antes = charco },
 }
 
+
+------------------------------------------------------------------ 8 DIRECCIONES (s, se, ne, n)
+-- La vista `e` es la de siempre (figura). Las otras cuatro se montan con piezas propias de
+-- cada vista (cabeza, torso, pies, manos de frente) sobre el mismo esqueleto: las piernas
+-- siguen el mismo ciclo de arrastre que la vista `e` (el pie izquierdo calzado va delante y el
+-- derecho descalzo se arrastra detrás), proyectado al suelo de la cámara 3/4.
+-- En la vista `s` su derecha queda a la izquierda de la pantalla; en `n`, a la derecha.
+
+-- Ciclo del suelo, sacado de ANDAR: avance (px, + = hacia donde mira) y altura del pie.
+local CICLO = {}
+for i, q in ipairs(ANDAR) do
+  CICLO[i] = { fR = q.pn[1] - 17.5, uR = 36 - q.pn[2], fL = q.pf[1] - 17.5, uL = 36 - q.pf[2],
+               bob = q.hip[2] - 23, cab = q.cab[3] - 1 }
+end
+-- Vaivén lateral (hacia su izquierda +): carga en el pie izquierdo y luego en el derecho.
+local VAIVEN = { 0, 1, 1, 1, 0, -1, -1, 0 }
+
+-- Piezas del cuerpo en las vistas nuevas -------------------------------------------------
+local Z8 = {}
+
+Z8.cabeza = {
+  s = P({
+    ".ijjh.",
+    "iljjih",
+    "jl4j4h",
+    "4E33E2",
+    "3e33e1",
+    "23RR21",
+    ".2rT1.",
+  }, 3, 6),
+  se = P({
+    ".ijjh.",
+    "iljjjh",
+    "hjj444",
+    "hi4E3E",
+    ".33e3e",
+    ".2233R",
+    "..22rT",
+  }, 3, 6),
+  ne = P({
+    ".ijjh.",
+    "iljjjh",
+    "ljjjjh",
+    "jjjih4",
+    "ijih34",
+    "hih233",
+    ".h2232",
+  }, 3, 6),
+  n = P({
+    ".ijjh.",
+    "iljjjh",
+    "ljjjih",
+    "jjjjih",
+    "3ijih2",
+    ".hiih.",
+    ".3322.",
+  }, 3, 6),
+}
+
+-- Torsos: hip = centro de la cadera; hombros en pantalla izquierda (I) y derecha (D).
+Z8.torso = {
+  s = P({
+    "..cdddddc..",
+    ".cdddddddcb",
+    "cddddcccccb",
+    "cdddccsccba",
+    "cddcccsSbba",
+    "cdcccssSbba",
+    ".ccccsbbba.",
+    ".cdcc3bbba.",
+    ".ccc334bba.",
+    ".cccbbbbba.",
+    ".ccbbbbbba.",
+    "..cbb.bb.a.",
+  }, 0, 0, { hip = { 5, 11 }, cuello = { 5, 0 }, hI = { 0, 1 }, hD = { 10, 1 } }),
+  se = P({
+    "...cdddc..",
+    "..cddddccb",
+    ".cdddcccba",
+    "cdddccscba",
+    "cddccssSba",
+    "cdcccsSbba",
+    "ccccc3bba.",
+    ".cdc33bba.",
+    ".ccc3bbba.",
+    ".cccbbbba.",
+    ".ccbbbbaa.",
+    "..cb.bb.a.",
+  }, 0, 0, { hip = { 5, 11 }, cuello = { 5, 0 }, hI = { 1, 2 }, hD = { 8, 1 } }),
+  ne = P({
+    "..cddc....",
+    ".cddddcb..",
+    "cdddddccb.",
+    "cddddcccba",
+    "cdddccc3ba",
+    "cddcccc33a",
+    ".cdccbbbba",
+    ".cdccbbba.",
+    ".cccbbbba.",
+    "..ccbbba..",
+    "..cbbbaa..",
+    "..cb.b.a..",
+  }, 0, 0, { hip = { 5, 11 }, cuello = { 4, 0 }, hI = { 1, 1 }, hD = { 8, 2 } }),
+  n = P({
+    "..cddddc...",
+    ".cddddddcS.",
+    "cdddddccSba",
+    "cddddddccba",
+    "cddddcbccba",
+    ".cddccbcbba",
+    ".cdcccbcbba",
+    ".ccccbbbba.",
+    ".ccc3bbbba.",
+    "..c33bbba..",
+    "..cbbbbaa..",
+    "..cb.bb.a..",
+  }, 0, 0, { hip = { 5, 11 }, cuello = { 5, 0 }, hI = { 0, 2 }, hD = { 10, 2 } }),
+}
+
+-- Piernas de frente / de espaldas (4 px de ancho; luz a la izquierda).
+local musloF = P({ "zzyx", "zyyx", "zyyx", "zyxw", "zyxw", "yyxw" }, 1, 0)
+Z8.pR = {    -- pierna derecha: vaquero roto y pie descalzo
+  muslo = musloF,
+  tibia = P({ "zyx", "zyx", "zyx", "yxw", "y.x", "343" }, 1, 0),
+  pies = {
+    s = P({ "4443", "2331" }, 1, 0),        -- dedos hacia la cámara
+    n = P({ ".43.", "2331" }, 1, 0),        -- talón
+    se = P({ "443..", "23431" }, 1, 0),
+    ne = P({ ".443", "2331" }, 1, 0),
+  },
+}
+Z8.pL = {    -- pierna izquierda: con zapato
+  muslo = musloF,
+  tibia = P({ "zyx", "zyx", "zyx", "zyx", "yxw" }, 1, 0),
+  pies = {
+    s = P({ "popn", "nonm", "mmmm" }, 1, 0),
+    n = P({ "ponm", "oonm", "mmmm" }, 1, 0),
+    se = P({ "pon..", "pooon", "mmmmm" }, 1, 0),
+    ne = P({ "pon.", "oonm", "mmmm" }, 1, 0),
+  },
+}
+
+-- Brazos: tramos verticales/tumbados de la vista `e` más un antebrazo ancho en escorzo
+-- y una mano vista de frente (los dedos cuelgan hacia la cámara).
+Z8.bR = {   -- brazo derecho: manga arrancada y mordisco
+  upV = Z.brazoN.upV, upH = Z.brazoN.upH, foV = Z.brazoN.foV, foH = Z.brazoN.foH,
+  foF = P({ "4554", "4R43", "3r32" }, 1, 0),
+  manoV = Z.brazoN.manoV, manoH = Z.brazoN.manoH,
+  manoF = P({ "4554", "4443", "3.32" }, 1, 0),
+  manoG = P({ ".445.", "45543", "34432", "2.2.1" }, 2, 0),
+  hombrera = P({ ".dd.", "cddc", "c..a" }, 1, 1),
+}
+Z8.bL = {   -- brazo izquierdo: manga hasta el codo
+  upV = Z.brazoF.upV, upH = Z.brazoF.upH, foV = Z.brazoF.foV, foH = Z.brazoF.foH,
+  foF = P({ "4554", "4443", "3432" }, 1, 0),
+  manoV = Z.brazoN.manoV, manoH = Z.brazoN.manoH,
+  manoF = P({ "4554", "4443", "3.32" }, 1, 0),
+  manoG = P({ ".445.", "45543", "34432", "2.2.1" }, 2, 0),
+}
+
+-- Brazo por puntos: { hombro x, y, codo x, y, muñeca x, y, mano = "F"|"V"|"U"|"H"|"I"|nil, ancho = bool }
+local function brazoP(img, B, mapa, a)
+  tramo(img, B.upV, B.upH, mapa, a[1], a[2], a[3], a[4], false)
+  tramo(img, a.ancho and B.foF or B.foV, B.foH, mapa, a[3], a[4], a[5], a[6], true)
+  if B.hombrera and a.hombrera then pegar(img, B.hombrera, a[1], a[2], mapa) end
+  local wx, wy = a[5], a[6]
+  local m = a.mano
+  if m == nil then
+    local dx, dy = wx - a[3], wy - a[4]
+    if abs(dy) >= abs(dx) then m = dy >= 0 and "V" or "U" else m = dx >= 0 and "H" or "I" end
+  end
+  if m == "F" then return { B.manoF, wx, wy + 1, false, false } end
+  if m == "G" then return { B.manoG, wx, wy + 1, false, false } end
+  if m == "V" then return { B.manoV, wx, wy + 1, false, false } end
+  if m == "U" then return { B.manoV, wx, wy - 1, false, true } end
+  if m == "H" then return { B.manoH, wx + 1, wy, false, false } end
+  if m == "I" then return { B.manoH, wx - 1, wy, true, false } end
+  return nil
+end
+
+-- Vistas: dirección de la mirada en el suelo y qué se pinta detrás del cuerpo.
+local VISTA = {
+  s  = { d = { 0, 1 } },
+  se = { d = { 0.71, 0.71 } },
+  ne = { d = { 0.71, -0.71 } },
+  n  = { d = { 0, -1 } },
+}
+local SY = 0.2     -- compresión de la profundidad para el paso
+local G = 38 - 6.5 * SY
+
+-- Dibuja un fotograma de las vistas nuevas. q = { v, k (fase del ciclo), bob, dx, cab = {dx, dy},
+-- R = brazo derecho, Lb = brazo izquierdo } ; los brazos van relativos al hombro.
+local function figura8(img, C, q, ctx)
+  local mapa, lejos = C.mapa, C.lejos
+  local prot = {}
+  local V = VISTA[q.v]
+  local dxs, dys = V.d[1], V.d[2]
+  local rx, ry = -dys, dxs                 -- su derecha en el suelo
+  local c = CICLO[q.k]
+  local sway = (q.sway or VAIVEN[q.k])
+  local hx = 20 + R(-sway * rx) + (q.dx or 0)
+  local hy = 23 + c.bob + (q.bob or 0)
+  local T = Z8.torso[q.v]
+  local ox, oy = hx - T.hip[1], hy - T.hip[2]
+  local nx, ny = ox + T.cuello[1], oy + T.cuello[2]
+  local hIx, hIy = ox + T.hI[1], oy + T.hI[2] + 1
+  local hDx, hDy = ox + T.hD[1], oy + T.hD[2] + 1
+  -- su derecha / izquierda en pantalla
+  local derI = (q.v == "s" or q.v == "se")
+  local shR = derI and { hIx, hIy } or { hDx, hDy }
+  local shL = derI and { hDx, hDy } or { hIx, hIy }
+
+  -- pies en el suelo
+  local function pie(f, u, l)
+    local gx = f * dxs + l * rx
+    local gy = f * dys + l * ry
+    return R(20 + gx * 0.8), R(G + gy * SY - u)
+  end
+  local fRx, fRy = pie(c.fR, c.uR, 2.5)
+  local fLx, fLy = pie(c.fL, c.uL, -2.5)
+  local hipRx, hipRy = R(hx + 2 * rx), hy
+  local hipLx, hipLy = R(hx - 2 * rx), hy
+  if q.pies then fRx, fRy, fLx, fLy = q.pies[1], q.pies[2], q.pies[3], q.pies[4] end
+
+  local function fijo(pz, m)
+    if not pz then return end
+    capa(img, C, prot, { fijo = true }, function(t) pegar(t, pz[1], pz[2], pz[3], m, pz[4], pz[5]) end)
+  end
+  local function pierna8(Pz, m, hpx, hpy, fx, fy, u)
+    local pz = Pz.pies[q.v]
+    local ay = fy - pz.h        -- fila del tobillo
+    local kx, ky = R((hpx + fx) / 2 + u * 0.5 * (dxs >= 0 and 1 or -1) * (abs(dxs) > 0.1 and 1 or 0)), R((hpy + ay) / 2)
+    capa(img, C, prot, { derecha = true }, function(t)
+      tramoV(t, Pz.muslo, m, hpx, hpy, kx, ky, false)
+      tramoV(t, Pz.tibia, m, kx, ky, fx, ay, true)
+    end)
+    fijo({ pz, fx, ay + 1, false, false }, m)
+  end
+  local function brazo8(B, m, sh, a, op)
+    if not a then return end
+    local pts = { sh[1], sh[2], sh[1] + a[1], sh[2] + a[2], sh[1] + a[3], sh[2] + a[4], mano = a.mano, ancho = a.ancho, hombrera = a.hombrera }
+    local pz
+    capa(img, C, prot, op or { derecha = true, abajo = true }, function(t) pz = brazoP(t, B, m, pts) end)
+    fijo(pz, m)
+  end
+
+  -- su brazo derecho es el cercano en se y ne; el izquierdo, el lejano
+  local mR = mapa
+  local mL = (q.v == "se" or q.v == "ne") and lejos or mapa
+  -- 1. lo que queda detrás del cuerpo
+  if q.v == "n" then
+    brazo8(Z8.bL, mapa, shL, q.Lb, {}); brazo8(Z8.bR, mapa, shR, q.R, {})
+  elseif q.v == "ne" or (q.Lb and q.Lb.atras) then
+    brazo8(Z8.bL, lejos, shL, q.Lb, {})
+  end
+  -- 2. piernas: la que pisa más lejos de la cámara primero
+  local pR = function() pierna8(Z8.pR, (q.v == "ne" or q.v == "se") and mapa or mapa, hipRx, hipRy, fRx, fRy, c.uR) end
+  local pL = function() pierna8(Z8.pL, (q.v == "ne" or q.v == "se") and lejos or mapa, hipLx, hipLy, fLx, fLy, c.uL) end
+  L.rect(img, hx - 3, hy - 1, 7, 3, mapa.x)
+  if fRy + (q.v == "se" and 1 or 0) >= fLy then pL(); pR() else pR(); pL() end
+  -- 3. torso y cabeza
+  capa(img, C, prot, { abajo = true }, function(t) pegar(t, T, ox, oy, mapa) end)
+  local cab = Z8.cabeza[q.v]
+  local cx, cy = nx + (q.cab and q.cab[1] or 0), ny + (q.cab and q.cab[2] or 0) + c.cab
+  capa(img, C, prot, { abajo = true, fijo = true }, function(t) pegar(t, cab, cx, cy, mapa) end)
+  -- 4. brazos por delante
+  if q.v == "s" then
+    brazo8(Z8.bR, mapa, shR, q.R); brazo8(Z8.bL, mapa, shL, q.Lb)
+  elseif q.v == "se" then
+    if not q.Lb.atras then brazo8(Z8.bL, lejos, shL, q.Lb) end
+    brazo8(Z8.bR, mapa, shR, q.R)
+  elseif q.v == "ne" then
+    brazo8(Z8.bR, mapa, shR, q.R)
+  end
+  contornoSelectivo(img, C, prot)
+  for y = 0, H - 1 do for x = 0, W - 1 do
+    if L.opaco(img, x, y) and (x == 0 or x == W - 1 or y == 0 or y == H - 1) then
+      print("  AVISO " .. ctx.nombre .. " " .. ctx.tag .. ": píxel en el borde (" .. x .. "," .. y .. ")")
+      return
+    end
+  end end
+end
+
+-- Poses de los brazos por vista (relativas al hombro: codo dx, dy, muñeca dx, dy).
+-- andar: brazos al frente con un vaivén alterno de 1 px.
+local ALCE = {
+  s  = { R = { 0, 2, 1, 3, mano = "F", ancho = true, hombrera = true }, Lb = { 0, 2, -1, 3, mano = "F", ancho = true } },
+  se = { R = { 1, 3, 5, 5, mano = "H" }, Lb = { 2, 3, 5, 4, mano = "H" } },
+  ne = { R = { 3, 0, 7, -1, mano = "H" }, Lb = { 4, 0, 9, -2, mano = "H" } },
+  n  = { R = { 2, 1, -1, -3 }, Lb = { -2, 1, 1, -3 } },
+}
+local VAIVEN_BR = { 0, 0, 1, 1, 0, 0, -1, -1 }
+local function mover(a, dy, dx)
+  local b = {}
+  for k, v in pairs(a) do b[k] = v end
+  b[2] = b[2] + R(dy * 0.5); b[4] = b[4] + dy; b[3] = b[3] + (dx or 0) ; b[1] = b[1] + R((dx or 0) * 0.5)
+  return b
+end
+
+local function posesAndar(v)
+  local t = {}
+  for k = 1, 8 do
+    local s = VAIVEN_BR[k]
+    t[k] = { v = v, k = k, R = mover(ALCE[v].R, s), Lb = mover(ALCE[v].Lb, -s) }
+  end
+  return t
+end
+
+-- atacar: toma impulso con los brazos arriba, zarpazo (2.º), sigue y se recupera.
+local ATAQUE = {
+  s = {
+    { bob = -1, cab = { 0, -1 }, R = { -2, -4, -1, -8, mano = "U", hombrera = true }, Lb = { 2, -4, 1, -8, mano = "U" } },
+    { bob = 1, cab = { 0, 1 }, R = { -2, 2, -2, 4, mano = "G", ancho = true, hombrera = true }, Lb = { 2, 2, 2, 4, mano = "G", ancho = true } },
+    { bob = 1, cab = { 0, 1 }, R = { 0, 4, 4, 7, mano = "F", ancho = true, hombrera = true }, Lb = { 0, 4, -4, 7, mano = "F", ancho = true } },
+    { bob = 0, cab = { 0, 0 }, R = { 0, 3, 1, 4, mano = "F", ancho = true, hombrera = true }, Lb = { 0, 3, -1, 4, mano = "F", ancho = true } },
+  },
+  se = {
+    { bob = -1, cab = { -1, -1 }, R = { -2, -4, -1, -8, mano = "U" }, Lb = { 1, -4, 1, -8, mano = "U", atras = true } },
+    { bob = 1, cab = { 1, 1 }, R = { 3, 3, 8, 5, mano = "H" }, Lb = { 3, 2, 7, 4, mano = "H" } },
+    { bob = 1, cab = { 1, 1 }, R = { 2, 4, 6, 7 }, Lb = { 3, 3, 5, 7 } },
+    { bob = 0, cab = { 0, 0 }, R = { 1, 3, 5, 5, mano = "H" }, Lb = { 2, 3, 5, 4, mano = "H" } },
+  },
+  ne = {
+    { bob = -1, cab = { -1, -1 }, R = { 1, -4, 0, -8, mano = "U" }, Lb = { -1, -4, 0, -8, mano = "U" } },
+    { bob = 1, cab = { 1, 1 }, R = { 4, -1, 8, -2, mano = "H" }, Lb = { 4, -3, 9, -4, mano = "H" } },
+    { bob = 1, cab = { 1, 1 }, R = { 3, 0, 7, 1, mano = "H" }, Lb = { 4, -2, 8, -2, mano = "H" } },
+    { bob = 0, cab = { 0, 0 }, R = { 3, -1, 6, -3, mano = "H" }, Lb = { 4, -3, 8, -5, mano = "H" } },
+  },
+  n = {
+    { bob = -1, cab = { 0, -1 }, R = { 2, -4, 1, -8, mano = "U" }, Lb = { -2, -4, -1, -8, mano = "U" } },
+    { bob = 1, cab = { 0, 1 }, R = { 1, -1, -2, -4 }, Lb = { -1, -1, 2, -4 } },
+    { bob = 1, cab = { 0, 1 }, R = { 1, 0, -2, -3 }, Lb = { -1, 0, 2, -3 } },
+    { bob = 0, cab = { 0, 0 }, R = { 1, -2, -1, -5 }, Lb = { -1, -2, 1, -5 } },
+  },
+}
+-- El ataque se da con los pies quietos en el fotograma 1 del ciclo.
+local function posesAtacar(v)
+  local t = {}
+  for i, a in ipairs(ATAQUE[v]) do
+    local q = { v = v, k = 1, sway = 0 }
+    for kk, vv in pairs(a) do q[kk] = vv end
+    t[i] = q
+  end
+  return t
+end
+
 ------------------------------------------------------------------ construir
 local function construir(nombre, C)
-  local cuadros = {}
-  local k = 0
-  for _, par in ipairs({ { "andar", ANDAR, true }, { "atacar", ATACAR, false }, { "morir", MORIR, false } }) do
-    local anim, lista, bucle = par[1], par[2], par[3]
-    local poses, anclas = {}, {}
+  local cuadros, etiquetas, dur = {}, {}, {}
+  local function poner(tag, lista, durs, fn)
+    local desde = #cuadros + 1
     for i, q in ipairs(lista) do
-      poses[i] = C.pose and C.pose(q, anim) or q
-      anclas[i] = figura(nil, C, poses[i], nil)
+      local ctx = { nombre = nombre, tag = tag .. " " .. i, k = #cuadros }
+      cuadros[#cuadros + 1] = function(img) fn(img, q, ctx) end
+      dur[#dur + 1] = type(durs) == "table" and durs[i] or durs
     end
-    for i, q in ipairs(poses) do
-      local ant = anclas[i - 1] or (bucle and anclas[#anclas]) or nil
-      local ctx = { nombre = nombre, k = k, ant = ant }
-      cuadros[#cuadros + 1] = function(img) figura(img, C, q, ctx) end
-      k = k + 1
-    end
+    etiquetas[#etiquetas + 1] = { tag, desde, #cuadros }
   end
-  local dur = {}
-  for i = 1, 8 do dur[i] = 0.14 end
-  for _, d in ipairs({ 0.12, 0.08, 0.10, 0.14, 0.09, 0.09, 0.11, 0.13, 0.16, 1.0 }) do dur[#dur + 1] = d end
-  L.construir(nombre, W, H, cuadros, { { "andar", 1, 8 }, { "atacar", 9, 12 }, { "morir", 13, 18 } }, dur, { pies = { 20, 38 } })
+  local function figE(lista, bucle)
+    -- prepara anclas como en la versión de una sola dirección
+    local anclas = {}
+    for i, q in ipairs(lista) do anclas[i] = figura(nil, C, q, nil) end
+    local t = {}
+    for i, q in ipairs(lista) do
+      t[i] = { q = q, ant = anclas[i - 1] or (bucle and anclas[#anclas]) or nil }
+    end
+    return t
+  end
+  local function dibE(img, e, ctx) ctx.ant = e.ant; figura(img, C, e.q, ctx) end
+  local function dib8(img, q, ctx) figura8(img, C, q, ctx) end
+  local DA = { 0.12, 0.08, 0.10, 0.14 }
+  for _, v in ipairs({ "s", "se", "e", "ne", "n" }) do
+    if v == "e" then poner("andar_e", figE(ANDAR, true), 0.14, dibE)
+    else poner("andar_" .. v, posesAndar(v), 0.14, dib8) end
+  end
+  for _, v in ipairs({ "s", "se", "e", "ne", "n" }) do
+    if v == "e" then poner("atacar_e", figE(ATACAR, false), DA, dibE)
+    else poner("atacar_" .. v, posesAtacar(v), DA, dib8) end
+  end
+  poner("morir", figE(MORIR, false), { 0.09, 0.09, 0.11, 0.13, 0.16, 1.0 }, dibE)
+  L.construir(nombre, W, H, cuadros, etiquetas, dur, { pies = { 20, 38 } })
 end
 
 construir("zombi", Z)
-construir("zombi_b", B)
