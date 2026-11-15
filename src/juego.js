@@ -114,9 +114,9 @@ export class Juego {
     };
   }
 
-  // Se compra entre rondas y dentro de la base.
+  // Se compra dentro de la base, entre rondas o en mitad de una (el juego queda parado mientras compras).
   puedeComprar() {
-    return this.estado === "jugando" && this.oleada.esperando && !this.jugador.muerto && dentro(this.base, this.jugador.y);
+    return this.estado === "jugando" && !this.jugador.muerto && dentro(this.base, this.jugador.y);
   }
   abrirTienda() { this.estado = "tienda"; this.pestana ??= "armas"; sonar("boton"); }
   cerrarTienda() { this.estado = "jugando"; sonar("boton"); }
@@ -1180,6 +1180,12 @@ export class Juego {
       if (dentroBase) this.botonGrande(g, t("tienda"), yb, () => this.abrirTienda(), "#8a6a24", xb, bw2);
       this.botonGrande(g, t("listo"), yb, () => this.listo(), "#4a6a34", dentroBase ? xb + bw2 + gap2 : xb, bw2);
       texto(g, t(dentroBase ? "ayudaDescanso" : "vuelveBase"), W / 2, yb + 36, "#d1cec0", "centro");
+    } else if (this.estado === "jugando" && !j.muerto && o.n > 0) {
+      // En mitad de la ronda: TIENDA dentro de la base; fuera, si no te quedan balas, aviso de volver.
+      const bw2 = anchoTexto(t("tienda"), 2) + 24, yb = 36;
+      if (dentro(this.base, j.y)) this.botonGrande(g, t("tienda"), yb, () => this.abrirTienda(), "#8a6a24", W - bw2 - 8, bw2);   // a un lado: no tapa el portón
+      else if (!ORDEN_ARMAS.some((n) => this.conBalas(n)) && Math.floor(this.t * 2) % 2 === 0)
+        texto(g, t("vuelveBase"), W / 2, yb + 6, "#ff5a5a", "centro");
     }
 
     if (this.estado === "tienda") pantallaTienda(this, g);
