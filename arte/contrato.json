@@ -31,6 +31,8 @@
   "moneda": {"w": 10, "h": 10, "tags": {"girar": 6}, "grupo": "interfaz"},
   "botiquin": {"w": 14, "h": 12, "frames": 1, "grupo": "interfaz"},
   "letra": {"w": 6, "h": 10, "frames": 1, "hoja": true, "hoja_w": 366, "grupo": "interfaz"},
+  "palotes": {"w": 64, "h": 26, "frames": 9, "grupo": "interfaz"},
+  "cifras_sangre": {"w": 16, "h": 26, "frames": 10, "grupo": "interfaz"},
   "banderas": {"w": 26, "h": 17, "frames": 2, "grupo": "interfaz"},
   "titulo": {"w": 150, "h": 56, "frames": 1, "grupo": "interfaz"},
   "icono": {"w": 64, "h": 64, "frames": 1, "grupo": "interfaz"}

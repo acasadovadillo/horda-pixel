@@ -1,0 +1,105 @@
+{ "frames": [
+   {
+    "filename": "cifras_sangre 0.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 1.aseprite",
+    "frame": { "x": 16, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 2.aseprite",
+    "frame": { "x": 32, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 3.aseprite",
+    "frame": { "x": 48, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 4.aseprite",
+    "frame": { "x": 64, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 5.aseprite",
+    "frame": { "x": 80, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 6.aseprite",
+    "frame": { "x": 96, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 7.aseprite",
+    "frame": { "x": 112, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 8.aseprite",
+    "frame": { "x": 128, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   },
+   {
+    "filename": "cifras_sangre 9.aseprite",
+    "frame": { "x": 144, "y": 0, "w": 16, "h": 26 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 26 },
+    "sourceSize": { "w": 16, "h": 26 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18.6-x64",
+  "image": "cifras_sangre.png",
+  "format": "RGBA8888",
+  "size": { "w": 160, "h": 26 },
+  "scale": "1",
+  "frameTags": [
+  ],
+  "slices": [
+  ]
+ }
+}

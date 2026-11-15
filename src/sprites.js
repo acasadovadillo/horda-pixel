@@ -7,7 +7,7 @@ const NOMBRES = [
   "suelo", "manchas", "detalles",
   "coche", "barril", "caja", "sacos", "hoguera", "cono", "neumaticos", "contenedor", "barrera",
   "arbol", "arbusto", "farola",
-  "joystick", "corazon", "moneda", "botiquin", "letra", "titulo", "banderas",
+  "joystick", "corazon", "moneda", "botiquin", "letra", "titulo", "banderas", "palotes", "cifras_sangre",
 ];
 
 export const S = {};
@@ -54,6 +54,7 @@ export async function cargarSprites(base = "assets/") {
   for (const n of ["jugador", "zombi", "zombi_b", "zombi_c", "corredor", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
     S[n].blanca = teñida(S[n].img, "#ffffff");
   }
+  for (const n of ["palotes", "cifras_sangre"]) S[n].blanca = teñida(S[n].img, "#f2ece4");
   for (const n of ["jugador", "brazos_pistola", "brazos_subfusil", "brazos_escopeta"]) {
     S[n].roja = teñida(S[n].img, "#ff4a4a");
   }

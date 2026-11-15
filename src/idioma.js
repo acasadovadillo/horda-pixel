@@ -3,7 +3,8 @@
 
 const TEXTOS = {
   es: {
-    bajas: "BAJAS", oleada: "OLEADA", oleadaSuperada: "OLEADA SUPERADA",
+    bajas: "BAJAS", oleada: "RONDA", oleadaSuperada: "RONDA SUPERADA",
+    estadisticas: "ESTADÍSTICAS", partidaActual: "PARTIDA ACTUAL", volver: "VOLVER",
     recargando: "RECARGANDO", muevete: "MUÉVETE AQUÍ",
     pistola: "GLOCK 17", subfusil: "MP5", escopeta: "REMINGTON 870",
     tocaEmpezar: "TOCA PARA EMPEZAR",
@@ -19,7 +20,8 @@ const TEXTOS = {
     girar: "Gira el móvil<br>para jugar en horizontal", cargando: "Cargando…",
   },
   en: {
-    bajas: "KILLS", oleada: "WAVE", oleadaSuperada: "WAVE CLEARED",
+    bajas: "KILLS", oleada: "ROUND", oleadaSuperada: "ROUND CLEARED",
+    estadisticas: "STATS", partidaActual: "CURRENT GAME", volver: "BACK",
     recargando: "RELOADING", muevete: "MOVE HERE",
     pistola: "GLOCK 17", subfusil: "MP5", escopeta: "REMINGTON 870",
     tocaEmpezar: "TAP TO START",

@@ -87,6 +87,7 @@ export class Juego {
   }
 
   pausar() {
+    this.verEstadisticas = false;
     if (this.estado === "jugando") this.estado = "pausa";
     else if (this.estado === "pausa") this.estado = "jugando";
   }
@@ -462,6 +463,8 @@ export class Juego {
         if (o.z <= 0) { o.z = 0; o.vz = o.vz < -45 ? -o.vz * 0.35 : 0; o.vx *= 0.5; o.vy *= 0.5; }
       }
       if (j.muerto) continue;
+      // Con la vida llena el botiquín se queda en el suelo: ni se atrae ni se recoge.
+      if (o.tipo === "botiquin" && j.vida >= JUGADOR.vida) continue;
       const dx = j.x - o.x, dy = j.y - 8 - o.y, d = Math.hypot(dx, dy) || 1;
       const iman = o.tipo === "moneda" ? JUGADOR.recogerMonedas : 15;
       if (d < iman && o.t > 0.35) {
@@ -471,7 +474,6 @@ export class Juego {
       if (d < 9 && o.t > 0.35) {
         if (o.tipo === "moneda") { this.stats.monedas++; sonar("moneda", 0.03); }
         else if (o.tipo === "botiquin") {
-          if (j.vida >= JUGADOR.vida) continue;
           const antes = j.vida;
           j.vida = Math.min(JUGADOR.vida, j.vida + BOTIN.curaBotiquin);
           this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: "+" + Math.round(j.vida - antes), color: "#7ee07e" });
@@ -821,10 +823,9 @@ export class Juego {
     g.fillStyle = "rgba(255,255,255,0.3)"; g.fillRect(21, 6, Math.round(bw * pv), 2);
     texto(g, Math.ceil(j.vida), 21 + bw + 5, 5);
 
-    // Bajas, oleada y monedas
+    // Ronda pintada con sangre, debajo de la vida (las bajas están en Estadísticas, en la pausa)
     const o = this.oleada;
-    texto(g, t("bajas") + " " + this.stats.bajas, 5, 21, "#d1cec0");
-    texto(g, t("oleada") + " " + Math.max(1, o.n), W / 2, 21, "#f2c84a", "centro");
+    this.dibujarRonda(g, 0, 15);
     // Pausa: botón grande arriba a la derecha y zona tocable aún más grande alrededor
     const pw = 30, ph = 28, bx = W - pw - 4, by = 3;
     g.fillStyle = "#0e0d12"; g.fillRect(bx, by, pw, ph);
@@ -927,18 +928,35 @@ export class Juego {
       }
     }
 
-    // Carteles
+    // Carteles (el cambio de ronda lo anuncia el propio indicador parpadeando)
     if (this.estado !== "jugando") { /* sin carteles detrás de los menús */ }
-    else if (o.cartel > 0) {
-      g.globalAlpha = Math.min(1, o.cartel * 2);
-      texto(g, t("oleada") + " " + o.n, W / 2, H * 0.3, "#f2c84a", "centro", 3);
-      g.globalAlpha = 1;
-    } else if (o.superada > 0) {
+    else if (o.superada > 0) {
       texto(g, t("oleadaSuperada"), W / 2, H * 0.3, "#7ee07e", "centro", 2);
     }
 
     if (this.estado === "pausa") this.pantallaPausa(g);
     if (this.estado === "fin") this.pantallaFin(g);
+  }
+
+  // Ronda 1 a 9: palotes (el quinto tacha a los cuatro primeros); de la 10 en adelante, número.
+  // Entre rondas parpadea en blanco; al empezar la nueva, parpadea rápido un momento.
+  dibujarRonda(g, x, y) {
+    const o = this.oleada, n = o.n;
+    if (!n) return;
+    let blanca = false;
+    if (o.descanso > 0) blanca = Math.floor(this.t * 3.4) % 2 === 0;
+    else if (o.cartel > 1.1) blanca = Math.floor(o.cartel * 7) % 2 === 0;
+    // A doble tamaño: tiene que leerse de un vistazo, como una marca pintada en la pared.
+    g.save();
+    g.translate(x, y); g.scale(2, 2);
+    if (n <= 9) {
+      const p = S.palotes;
+      dibujar(g, p, n - 1, 0, 0, false, blanca ? p.blanca : p.img);
+    } else {
+      const c = S.cifras_sangre;
+      [...String(n)].forEach((d, i) => dibujar(g, c, +d, i * 12, 0, false, blanca ? c.blanca : c.img));
+    }
+    g.restore();
   }
 
   velo(g, a = 0.65) {
@@ -1025,6 +1043,7 @@ export class Juego {
   pantallaPausa(g) {
     const W = this.uiW, H = this.uiH;
     this.velo(g);
+    if (this.verEstadisticas) return this.pantallaEstadisticas(g);
     texto(g, t("pausa"), W / 2, H * 0.1, "#ffffff", "centro", 3);
     this.botonGrande(g, t("seguir"), H * 0.24, () => { sonar("boton"); this.pausar(); });
     // Sonido y cámara, uno al lado del otro
@@ -1039,7 +1058,32 @@ export class Juego {
     const sw = this.anchoSelector(2), x1 = Math.round(W / 2 - (dw + gap + sw) / 2);
     this.botonGrande(g, txtD, H * 0.24 + 76, () => { this.cambiarDisparo(); sonar("boton"); }, "#34363d", x1, dw);
     this.selectorIdioma(g, x1 + dw + gap, Math.round(H * 0.24 + 72), 2);
-    this.botonGrande(g, t("reiniciar"), H * 0.24 + 122, () => this.empezar(), "#872a26");
+    // Estadísticas y reiniciar, uno al lado del otro
+    const ew = Math.max(anchoTexto(t("estadisticas"), 2), anchoTexto(t("reiniciar"), 2)) + 24, x2 = Math.round(W / 2 - ew - gap / 2);
+    this.botonGrande(g, t("estadisticas"), H * 0.24 + 122, () => { this.verEstadisticas = true; sonar("boton"); }, "#3b526b", x2, ew);
+    this.botonGrande(g, t("reiniciar"), H * 0.24 + 122, () => this.empezar(), "#872a26", x2 + ew + gap, ew);
+  }
+
+  // Estadísticas de la partida actual (más adelante, también de partidas anteriores).
+  pantallaEstadisticas(g) {
+    const W = this.uiW, H = this.uiH, s = this.stats;
+    texto(g, t("estadisticas"), W / 2, H * 0.07, "#ffffff", "centro", 3);
+    texto(g, t("partidaActual"), W / 2, H * 0.07 + 34, "#85837a", "centro");
+    const y0 = H * 0.07 + 52;
+    texto(g, t("bajas"), W / 2 - 84, y0, "#d1cec0", "izq", 2);
+    texto(g, s.bajas, W / 2 + 84, y0, "#e0403a", "der", 2);
+    const filas = [
+      [t("oleada"), Math.max(1, this.oleada.n)],
+      [t("monedas"), s.monedas],
+      [t("tiempo"), Math.floor(s.tiempo / 60) + ":" + String(Math.floor(s.tiempo % 60)).padStart(2, "0")],
+      [t("punteria"), (s.disparos ? Math.round(100 * s.impactos / s.disparos) : 0) + "%"],
+    ];
+    filas.forEach(([k, v], i) => {
+      const y = y0 + 28 + i * 14;
+      texto(g, k, W / 2 - 84, y, "#d1cec0");
+      texto(g, v, W / 2 + 84, y, "#f2c84a", "der");
+    });
+    this.botonGrande(g, t("volver"), y0 + 28 + filas.length * 14 + 8, () => { this.verEstadisticas = false; sonar("boton"); });
   }
 
   pantallaFin(g) {
