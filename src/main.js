@@ -3,6 +3,7 @@ import { cargarSprites } from "./sprites.js";
 import { iniciarEntrada, entrada } from "./entrada.js";
 import { Juego } from "./juego.js";
 import { PANTALLA } from "./config.js";
+import { aplicarAPagina } from "./idioma.js";
 import { ANCHO, T } from "./mapa.js";
 
 const lienzo = document.getElementById("juego");
@@ -49,6 +50,7 @@ function pintar() {
 }
 
 async function arrancar() {
+  aplicarAPagina();
   // ?assets=carpeta permite probar con otro juego de sprites (por ejemplo los maniquíes de arte/maniquies.py)
   const carpeta = new URLSearchParams(location.search).get("assets");
   await cargarSprites(/^[a-z0-9_-]+$/i.test(carpeta || "") ? carpeta + "/" : "assets/");

@@ -20,17 +20,17 @@ export const JUGADOR = {
 // empuje (px que retrocede el zombi por impacto), critico = probabilidad de doble daño.
 export const ARMAS = {
   pistola: {
-    nombre: "PISTOLA", dano: 12, cadencia: 2.6, cargador: 12, recarga: 1.1,
+    dano: 12, cadencia: 2.6, cargador: 12, recarga: 1.1,
     alcance: 165, velocidadBala: 420, dispersion: 3, perdigones: 1, empuje: 4.5,
     critico: 0.1, sacudida: 0.9, sonido: "pistola",
   },
   subfusil: {
-    nombre: "SUBFUSIL", dano: 7, cadencia: 9, cargador: 30, recarga: 1.7,
+    dano: 7, cadencia: 9, cargador: 30, recarga: 1.7,
     alcance: 142, velocidadBala: 450, dispersion: 9, perdigones: 1, empuje: 2.2,
     critico: 0.08, sacudida: 0.7, sonido: "subfusil",
   },
   escopeta: {
-    nombre: "ESCOPETA", dano: 8, cadencia: 1.1, cargador: 6, recarga: 2.1,
+    dano: 8, cadencia: 1.1, cargador: 6, recarga: 2.1,
     alcance: 108, velocidadBala: 390, dispersion: 24, perdigones: 6, empuje: 9,
     critico: 0.05, sacudida: 3.2, sonido: "escopeta",
   },
