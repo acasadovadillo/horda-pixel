@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="horda-pixel-version" content="2026-11-15.1">
+<meta name="description" content="Sobrevive a las oleadas de zombis. Juego de pixel art para móvil.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Horda Pixel">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1423">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="iconos/icono-192.png">
+<link rel="apple-touch-icon" href="iconos/icono-180.png">
+<title>Horda Pixel</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a1423; overflow: hidden; overscroll-behavior: none; }
+  body { position: fixed; inset: 0; touch-action: none;
+         -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+         -webkit-tap-highlight-color: transparent; }
+  /* El marco deja libres la muesca y la barra de inicio del móvil. */
+  #marco { position: absolute; inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+           display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
+  #cargando { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+              color: #c9d3dd; font: 14px monospace; }
+</style>
+</head>
+<body>
+<div id="cargando">Cargando…</div>
+<div id="marco"><canvas id="juego"></canvas></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

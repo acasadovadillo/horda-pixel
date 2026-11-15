@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "horda-pixel", "runtimeExecutable": "python3", "runtimeArgs": ["servidor.py", "8140"], "port": 8140 }
+  ]
+}

@@ -1,0 +1,22 @@
+{ "frames": [
+   {
+    "filename": "coche.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 22, "h": 34 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 22, "h": 34 },
+    "sourceSize": { "w": 22, "h": 34 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.18.6-x64",
+  "image": "coche.png",
+  "format": "RGBA8888",
+  "size": { "w": 22, "h": 34 },
+  "scale": "1",
+  "frameTags": [
+  ]
+ }
+}
