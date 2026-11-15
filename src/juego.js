@@ -4,6 +4,7 @@ import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, di
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, RADIO_STICK } from "./entrada.js";
 import { sonar, desbloquear, silenciar, silenciado } from "./audio.js";
+import { pantallaCompletaHorizontal } from "./pantalla.js";
 
 const ORDEN_ARMAS = ["pistola", "subfusil", "escopeta"];
 const PIES = { x: 20, y: 38 };          // punto de los pies por defecto en los lienzos de 40x40
@@ -38,7 +39,7 @@ export class Juego {
     this.blanco = null;
     this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0, superada: 0 };
     this.stats = { bajas: 0, monedas: 0, tiempo: 0, disparos: 0, impactos: 0, dano: 0, recibido: 0 };
-    this.camara = { x: s.x - this.ancho / 2, y: s.y - this.alto * 0.6 };
+    this.camara = { x: s.x - this.ancho / 2, y: s.y - this.alto * 0.68 };
     this.sacudida = 0;
     this.t = 0;
     this.estado = "jugando";
@@ -52,6 +53,7 @@ export class Juego {
   }
 
   empezar() {
+    pantallaCompletaHorizontal();
     desbloquear();
     sonar("boton");
     this.reiniciar();
@@ -477,7 +479,7 @@ export class Juego {
   moverCamara(dt) {
     const j = this.jugador, c = this.camara, m = this.mapa;
     const ox = j.x - this.ancho / 2;
-    const oy = j.y - this.alto * 0.6;           // se ve más por delante (arriba), de donde vienen
+    const oy = j.y - this.alto * 0.68;          // se ve más por delante (arriba), de donde vienen
     const k = 1 - Math.exp(-dt * 6);
     c.x += (ox - c.x) * k; c.y += (oy - c.y) * k;
     c.x = Math.max(0, Math.min(m.ancho - this.ancho, c.x));
@@ -772,24 +774,30 @@ export class Juego {
       texto(g, a.nombre + "  " + quedan + "/" + a.cargador, W - 5, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");
     }
 
-    // Joystick
+    // Joystick fijo abajo a la izquierda (siempre visible mientras se juega)
     const st = entrada.stick, js = S.joystick, mitad = Math.floor(js.w / 2);
     const iBase = primero(js, "base"), iBoton = primero(js, "boton");
-    if (st && !j.muerto && this.estado === "jugando") {
-      g.globalAlpha = 0.5;
-      dibujar(g, js, iBase, st.ox - mitad, st.oy - mitad);
-      g.globalAlpha = 0.9;
-      let dx = st.x - st.ox, dy = st.y - st.oy;
-      const l = Math.hypot(dx, dy);
-      if (l > RADIO_STICK) { dx = dx / l * RADIO_STICK; dy = dy / l * RADIO_STICK; }
-      dibujar(g, js, iBoton, st.ox + dx - mitad, st.oy + dy - mitad);
+    const base = { x: PANTALLA.joystick.x, y: H - PANTALLA.joystick.y };
+    entrada.base = base; entrada.ancho = W;
+    if (this.estado === "jugando" && !j.muerto) {
+      let dx = 0, dy = 0;
+      if (st) {
+        dx = st.x - base.x; dy = st.y - base.y;
+        const l = Math.hypot(dx, dy);
+        if (l > RADIO_STICK) { dx = dx / l * RADIO_STICK; dy = dy / l * RADIO_STICK; }
+      } else if (entrada.mx || entrada.my) {     // con teclado también se ve moverse
+        dx = entrada.mx * RADIO_STICK; dy = entrada.my * RADIO_STICK;
+      }
+      g.globalAlpha = st ? 0.75 : 0.5;
+      dibujar(g, js, iBase, base.x - mitad, base.y - mitad);
+      g.globalAlpha = st ? 0.95 : 0.7;
+      dibujar(g, js, iBoton, Math.round(base.x + dx) - mitad, Math.round(base.y + dy) - mitad);
       g.globalAlpha = 1;
-    } else if (this.estado === "jugando" && this.t < 8 && !j.muerto) {
-      g.globalAlpha = 0.3 + 0.15 * Math.sin(this.t * 4);
-      dibujar(g, js, iBase, 16, H - 78);
-      dibujar(g, js, iBoton, 16, H - 78);
-      g.globalAlpha = 1;
-      texto(g, "ARRASTRA PARA MOVERTE", 10, H - 92);
+      if (this.t < 6) {
+        g.globalAlpha = Math.min(1, (6 - this.t) / 1.5);
+        texto(g, "MUÉVETE AQUÍ", base.x - mitad, base.y - mitad - 14);
+        g.globalAlpha = 1;
+      }
     }
 
     // Carteles
@@ -825,40 +833,40 @@ export class Juego {
     const W = this.ancho, H = this.alto;
     this.velo(g, 0.5);
     const tit = S.titulo;
-    dibujar(g, tit, 0, Math.round(W / 2 - tit.w / 2), Math.round(H * 0.12));
+    dibujar(g, tit, 0, Math.round(W / 2 - tit.w / 2), Math.round(H * 0.06));
     // El superviviente y un zombi, a doble tamaño
     const t = performance.now() / 1000;
     const jug = S.jugador, br = S.brazos_pistola, z = S.zombi;
     const ij = fotograma(jug, "quieto", t), h = punto(jug, "hombro", ij, HOMBRO), hb = punto(br, "hombro", 0, { x: 8, y: 10 });
     g.save();
-    g.translate(Math.round(W / 2 - 78), Math.round(H * 0.38)); g.scale(2, 2);
+    g.translate(Math.round(W / 2 - 78), Math.round(H * 0.29)); g.scale(2, 2);
     dibujar(g, jug, ij, 0, 0);
     dibujar(g, br, primero(br, "apuntar"), h.x - hb.x, h.y - hb.y);
     g.restore();
     g.save();
-    g.translate(Math.round(W / 2 + 2), Math.round(H * 0.38)); g.scale(2, 2);
+    g.translate(Math.round(W / 2 + 2), Math.round(H * 0.29)); g.scale(2, 2);
     dibujar(g, z, fotograma(z, "andar", t), 0, 0, true);
     g.restore();
-    if (Math.floor(t * 2) % 2 === 0) texto(g, "TOCA PARA EMPEZAR", W / 2, H * 0.62, "#ffffff", "centro", 2);
-    texto(g, "ARRASTRA EL DEDO PARA MOVERTE", W / 2, H * 0.74, "#d1cec0", "centro");
-    texto(g, "DISPARAS SOLO AL ZOMBI MÁS CERCANO", W / 2, H * 0.74 + 14, "#d1cec0", "centro");
-    texto(g, "PROTOTIPO 0.2", W / 2, H - 16, "#85837a", "centro");
+    if (Math.floor(t * 2) % 2 === 0) texto(g, "TOCA PARA EMPEZAR", W / 2, H * 0.63, "#ffffff", "centro", 2);
+    texto(g, "MUÉVETE CON EL JOYSTICK DE ABAJO A LA IZQUIERDA", W / 2, H * 0.77, "#d1cec0", "centro");
+    texto(g, "DISPARAS SOLO AL ZOMBI MÁS CERCANO", W / 2, H * 0.77 + 13, "#d1cec0", "centro");
+    texto(g, "PROTOTIPO 0.3", W / 2, H - 16, "#85837a", "centro");
     this.boton(0, 0, W, H, () => this.empezar());
   }
 
   pantallaPausa(g) {
     const W = this.ancho, H = this.alto;
     this.velo(g);
-    texto(g, "PAUSA", W / 2, H * 0.22, "#ffffff", "centro", 3);
-    this.botonGrande(g, "SEGUIR", H * 0.38, () => { sonar("boton"); this.pausar(); });
-    this.botonGrande(g, silenciado() ? "SONIDO: NO" : "SONIDO: SÍ", H * 0.38 + 40, () => { silenciar(!silenciado()); sonar("boton"); }, "#34363d");
-    this.botonGrande(g, "REINICIAR", H * 0.38 + 80, () => this.empezar(), "#872a26");
+    texto(g, "PAUSA", W / 2, H * 0.1, "#ffffff", "centro", 3);
+    this.botonGrande(g, "SEGUIR", H * 0.32, () => { sonar("boton"); this.pausar(); });
+    this.botonGrande(g, silenciado() ? "SONIDO: NO" : "SONIDO: SÍ", H * 0.32 + 40, () => { silenciar(!silenciado()); sonar("boton"); }, "#34363d");
+    this.botonGrande(g, "REINICIAR", H * 0.32 + 80, () => this.empezar(), "#872a26");
   }
 
   pantallaFin(g) {
     const W = this.ancho, H = this.alto, s = this.stats;
     this.velo(g, 0.72);
-    texto(g, "HAS MUERTO", W / 2, H * 0.14, "#e0403a", "centro", 3);
+    texto(g, "HAS MUERTO", W / 2, H * 0.06, "#e0403a", "centro", 3);
     const filas = [
       ["OLEADA", this.oleada.n],
       ["BAJAS", s.bajas],
@@ -869,10 +877,10 @@ export class Juego {
       ["DAÑO RECIBIDO", Math.round(s.recibido)],
     ];
     filas.forEach(([k, v], i) => {
-      const y = H * 0.28 + i * 15;
+      const y = H * 0.2 + i * 14;
       texto(g, k, W / 2 - 84, y, "#d1cec0");
       texto(g, v, W / 2 + 84, y, "#f2c84a", "der");
     });
-    this.botonGrande(g, "OTRA VEZ", H * 0.28 + filas.length * 15 + 16, () => this.empezar(), "#4a6a34");
+    this.botonGrande(g, "OTRA VEZ", H * 0.2 + filas.length * 14 + 10, () => this.empezar(), "#4a6a34");
   }
 }

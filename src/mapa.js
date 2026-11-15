@@ -2,13 +2,15 @@
 import { S, punto, primero, cuantos } from "./sprites.js";
 
 export const T = 24;                    // tamaño de loseta
-export const ANCHO = 17, ALTO = 70;     // en losetas
+export const ANCHO = 31, ALTO = 70;     // en losetas
+const DES = 7;                          // columnas de campo a cada lado antes de la carretera
+const X = (col) => (col + DES) * T;     // x de una columna contando desde el borde de la carretera
 
 // Columnas: 0-3 hierba, 4 acera, 5 bordillo, 6-10 asfalto (8 = línea), 11 bordillo, 12 acera, 13-16 hierba.
-const COLUMNAS = ["hierba", "hierba", "hierba", "hierba", "acera", "bordillo_i", "asfalto", "asfalto", "linea",
-  "asfalto", "asfalto", "bordillo_d", "acera", "hierba", "hierba", "hierba", "hierba"];
-const CENTRO = 8.5 * T;                 // x del centro de la carretera
-const CALZADA = [6 * T, 11 * T];        // x de inicio y fin del asfalto
+const COLUMNAS = [...Array(DES).fill("hierba"), "hierba", "hierba", "hierba", "hierba", "acera", "bordillo_i", "asfalto", "asfalto", "linea",
+  "asfalto", "asfalto", "bordillo_d", "acera", "hierba", "hierba", "hierba", "hierba", ...Array(DES - 1).fill("hierba")];
+const CENTRO = X(8.5);                 // x del centro de la carretera
+const CALZADA = [X(6), X(11)];        // x de inicio y fin del asfalto
 
 // Caja de choque de cada objeto, relativa a su punto base (centro inferior apoyado en el suelo).
 const CHOQUE = {
@@ -49,7 +51,7 @@ export function crearMapa() {
   for (let y = 0; y < ALTO; y++) for (let x = 0; x < ANCHO; x++) {
     let tag = COLUMNAS[x], i = 0;
     if (tag === "hierba") {
-      if (r() < 0.07) { tag = "tierra"; i = entero(8); }
+      if (r() < (x < DES || x > ANCHO - DES ? 0.11 : 0.07)) { tag = "tierra"; i = entero(8); }
       else i = r() < 0.55 ? 0 : 1 + entero(3);
     } else if (tag === "asfalto") {
       if (r() < 0.07) { tag = "grieta"; i = entero(8); }
@@ -67,8 +69,8 @@ export function crearMapa() {
     g.globalAlpha = 1;
   };
   const enCalzada = () => CALZADA[0] + 14 + r() * (CALZADA[1] - CALZADA[0] - 28);
-  const enAcera = () => (r() < 0.5 ? 4 : 12) * T + 12 + (r() - 0.5) * 8;
-  const enHierba = () => (r() < 0.5 ? 14 + r() * 70 : 13 * T + 12 + r() * 70);
+  const enAcera = () => X(r() < 0.5 ? 4 : 12) + 12 + (r() - 0.5) * 8;
+  const enHierba = () => (r() < 0.5 ? 14 + r() * (X(4) - 28) : X(13) + 12 + r() * (X(4) - 28));
   const alto = ALTO * T;
   // detalles: 0 papeles, 1 hojas, 2 frenada, 3 aceite, 4 alcantarilla, 5 cascotes, 6 cristales, 7 hierbajos
   for (let i = 0; i < 4; i++) calco("detalles", 4, CALZADA[0] + 30 + r() * 60, 120 + i * 400 + r() * 200);
@@ -77,7 +79,7 @@ export function crearMapa() {
   for (let i = 0; i < 16; i++) calco("detalles", 0, r() < 0.6 ? enCalzada() : enAcera(), r() * alto);
   for (let i = 0; i < 26; i++) calco("detalles", 1, r() < 0.6 ? enHierba() : enAcera(), r() * alto);
   for (let i = 0; i < 12; i++) calco("detalles", 5, r() < 0.5 ? enCalzada() : enAcera(), r() * alto);
-  for (let i = 0; i < 14; i++) calco("detalles", 7, (r() < 0.5 ? 5 : 11) * T + 12 + (r() - 0.5) * 14, r() * alto);
+  for (let i = 0; i < 14; i++) calco("detalles", 7, X(r() < 0.5 ? 5 : 11) + 12 + (r() - 0.5) * 14, r() * alto);
   for (let i = 0; i < 16; i++) calco("manchas", entero(8), enCalzada(), r() * (alto - 240), 0.7);
 
   // ------------------------------------------------------------ objetos
@@ -104,10 +106,10 @@ export function crearMapa() {
   // barreras a los lados y dos hogueras
   poner("sacos", CENTRO - 60, campamento);
   poner("sacos", CENTRO + 60, campamento);
-  poner("barrera", 4 * T + 16, campamento + 2);
-  poner("barrera", 12 * T + 8, campamento + 2);
-  poner("hoguera", 5 * T + 4, campamento + 52);
-  poner("hoguera", 12 * T - 4, campamento + 52);
+  poner("barrera", X(4) + 16, campamento + 2);
+  poner("barrera", X(12) + 8, campamento + 2);
+  poner("hoguera", X(5) + 4, campamento + 52);
+  poner("hoguera", X(12) - 4, campamento + 52);
   poner("caja", CENTRO - 46, campamento + 78, 1);
   poner("caja", CENTRO - 64, campamento + 84, 0);
   poner("barril", CENTRO + 50, campamento + 82, 0);
@@ -115,20 +117,26 @@ export function crearMapa() {
 
   // Árboles y arbustos en las cunetas
   for (let y = 2; y < ALTO - 1; y += 3 + entero(3)) {
-    poner("arbol", 18 + r() * 44, y * T + r() * 14, variante("arbol", [0.55, 0.25, 0.2]));
-    if (r() < 0.85) poner("arbol", 13 * T + 30 + r() * 44, y * T + 30 + r() * 18, variante("arbol", [0.55, 0.25, 0.2]));
-    if (r() < 0.7) poner("arbusto", 12 + r() * 70, y * T + 44, variante("arbusto", [0.6, 0.4]));
-    if (r() < 0.7) poner("arbusto", 13 * T + 14 + r() * 70, y * T + 12, variante("arbusto", [0.6, 0.4]));
+    // Cuneta junto a la carretera
+    poner("arbol", X(0) + 18 + r() * 44, y * T + r() * 14, variante("arbol", [0.55, 0.25, 0.2]));
+    if (r() < 0.85) poner("arbol", X(13) + 30 + r() * 44, y * T + 30 + r() * 18, variante("arbol", [0.55, 0.25, 0.2]));
+    if (r() < 0.7) poner("arbusto", X(0) + 12 + r() * 70, y * T + 44, variante("arbusto", [0.6, 0.4]));
+    if (r() < 0.7) poner("arbusto", X(13) + 14 + r() * 70, y * T + 12, variante("arbusto", [0.6, 0.4]));
+    // Campo abierto a los lados, con árboles sueltos
+    for (const [x0, x1] of [[16, X(0) - 10], [X(17) + 10, ANCHO * T - 16]]) {
+      if (r() < 0.55) poner("arbol", x0 + r() * (x1 - x0), y * T + r() * 40, variante("arbol", [0.45, 0.3, 0.25]));
+      if (r() < 0.45) poner("arbusto", x0 + r() * (x1 - x0), y * T + 20 + r() * 40, variante("arbusto", [0.5, 0.5]));
+    }
   }
   // Farolas en las aceras (unas encendidas y otras rotas)
   for (let y = 4; y < ALTO - 3; y += 7) {
-    poner("farola", 4 * T + 13, y * T, r() < 0.6 ? 0 : 1);
-    poner("farola", 12 * T + 11, y * T + 3 * T, r() < 0.6 ? 0 : 1);
+    poner("farola", X(4) + 13, y * T, r() < 0.6 ? 0 : 1);
+    poner("farola", X(12) + 11, y * T + 3 * T, r() < 0.6 ? 0 : 1);
   }
   // Coches abandonados y cosas tiradas en la carretera (no en el campamento)
   for (let y = 4; y < ALTO - 15; y += 7 + entero(5)) {
     const izq = r() < 0.5;
-    const cx = (izq ? 6 * T + 26 : 9 * T + 22) + r() * 12;
+    const cx = (izq ? X(6) + 26 : X(9) + 22) + r() * 12;
     const cy = y * T + 50;
     poner("coche", cx, cy);
     calco("detalles", 6, cx + (izq ? 22 : -22), cy - 30 + r() * 20);
@@ -142,7 +150,7 @@ export function crearMapa() {
     const y = 3 + entero(ALTO - 18);
     poner(r() < 0.5 ? "barril" : "caja", enAcera(), y * T);
   }
-  for (let i = 0; i < 4; i++) poner("contenedor", (r() < 0.5 ? 4 * T + 2 : 13 * T - 2), (8 + i * 13 + entero(5)) * T);
+  for (let i = 0; i < 4; i++) poner("contenedor", (r() < 0.5 ? X(4) + 2 : X(13) - 2), (8 + i * 13 + entero(5)) * T);
   for (let i = 0; i < 3; i++) poner("barrera", enCalzada(), (10 + i * 16 + entero(6)) * T);
   for (let i = 0; i < 5; i++) poner("cono", enCalzada(), (6 + entero(ALTO - 24)) * T);
 

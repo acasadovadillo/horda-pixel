@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="horda-pixel-version" content="2026-11-15.2">
+<meta name="horda-pixel-version" content="2026-11-15.3">
 <meta name="description" content="Sobrevive a las oleadas de zombis. Juego de pixel art para móvil.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -24,12 +24,22 @@
            env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
            display: flex; align-items: center; justify-content: center; }
   canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
+  /* Aviso para girar el móvil cuando se sujeta en vertical */
+  #girar { display: none; position: fixed; inset: 0; z-index: 5; background: #0e0d12; color: #d1cec0;
+           font: 16px/1.5 monospace; text-align: center; align-items: center; justify-content: center; flex-direction: column; gap: 18px; }
+  #girar svg { width: 72px; height: 72px; animation: girar 2s ease-in-out infinite; }
+  @keyframes girar { 0%, 30% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
+  body.girar #girar { display: flex; }
   #cargando { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
               color: #c9d3dd; font: 14px monospace; }
 </style>
 </head>
 <body>
 <div id="cargando">Cargando…</div>
+<div id="girar">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#d1cec0" stroke-width="1.6"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18.5" x2="13" y2="18.5"/></svg>
+  <div>Gira el móvil<br>para jugar en horizontal</div>
+</div>
 <div id="marco"><canvas id="juego"></canvas></div>
 <script type="module" src="src/main.js"></script>
 </body>

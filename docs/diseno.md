@@ -1,9 +1,9 @@
-# Horda Pixel — prototipo 0.2 (sprites realistas)
+# Horda Pixel — prototipo 0.3 (horizontal)
 
-Juego de zombis para móvil en vertical, pixel art. El nombre es provisional.
+Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en vertical, pide girarlo. El nombre es provisional.
 
 ## Cómo se juega
-- **Moverse:** toca en cualquier sitio y arrastra; el joystick aparece bajo el dedo. En el ordenador: WASD o flechas.
+- **Moverse:** joystick fijo abajo a la izquierda; vale tocar en cualquier punto de la mitad izquierda de la pantalla y arrastrar. En el ordenador: WASD o flechas.
 - **Disparar:** automático. El personaje apunta y dispara al zombi vivo más cercano que esté a su alcance.
 - **Recargar:** automático cuando se vacía el cargador, o tras 1,2 s sin zombis cerca. En el ordenador también con R.
 - **Armas:** los tres botones de abajo a la derecha (1, 2 y 3 en el teclado). Ahora están todas desbloqueadas para probarlas; más adelante se comprarán.
@@ -27,7 +27,7 @@ Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 - Pistola contra zombi normal: 3 balas (~0,8 s). Subfusil: 6 balas (~0,6 s). Escopeta: un disparo a bocajarro.
 - Oleada n: 6 + 4·(n−1) zombis. Cada oleada les da un 8 % más de vida. Hay 4 s de descanso entre oleadas.
 - Cada zombi suelta de 1 a 2 monedas (el corredor, de 1 a 3) y un botiquín (+30) el 5 % de las veces.
-- Prueba automática quedándose quieto: muere en la oleada 3-4 con la pistola, la 4 con la escopeta y la 6 con el subfusil.
+- Prueba automática quedándose quieto: muere hacia la oleada 4-5 con la pistola, la 4 con la escopeta y la 6 con el subfusil.
 
 ## Arte
 Todo se dibuja en Aseprite con scripts de Lua, un archivo por sprite en `arte/sprites/`, usando la librería `arte/lib.lua`. La guía de estilo realista está en `arte/ESTILO.md` y las medidas obligatorias de cada sprite en `arte/contrato.json`.

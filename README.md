@@ -1,6 +1,6 @@
 # Horda Pixel
 
-Juego de zombis en pixel art para móvil (prototipo). Sobrevive a las oleadas: te mueves arrastrando el dedo y el personaje dispara solo al zombi más cercano.
+Juego de zombis en pixel art para móvil (prototipo). Se juega con el móvil en horizontal: te mueves con el joystick de abajo a la izquierda y el personaje dispara solo al zombi más cercano.
 
 **Jugar:** https://acasadovadillo.github.io/horda-pixel/
 

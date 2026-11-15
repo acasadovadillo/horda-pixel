@@ -15,9 +15,12 @@ function ajustar() {
   const dpr = window.devicePixelRatio || 1;
   const marco = document.getElementById("marco");
   const devW = Math.floor(marco.clientWidth * dpr), devH = Math.floor(marco.clientHeight * dpr);
-  // Escala entera si es grande; si no, en medios para no dejar los muñecos diminutos (móviles con 2x).
+  // Escala entera: con escalas como 2,5 los píxeles salen desiguales y la letra pequeña se deforma.
   const k = Math.min(devW / PANTALLA.anchoMinimo, devH / PANTALLA.altoMinimo);
-  escala = k >= 3 ? Math.floor(k) : Math.max(1, Math.floor(k * 2) / 2);
+  escala = Math.max(1, Math.floor(k));
+  // En un móvil en vertical se pide girarlo.
+  const tactil = matchMedia("(pointer: coarse)").matches;
+  document.body.classList.toggle("girar", tactil && marco.clientHeight > marco.clientWidth);
   const w = Math.min(Math.floor(devW / escala), ANCHO * T);   // nunca más ancho que el mapa
   const h = Math.floor(devH / escala);
   bajo.width = w; bajo.height = h;

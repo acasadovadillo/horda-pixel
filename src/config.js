@@ -2,8 +2,9 @@
 // (20 px = 1 m; una persona mide 35 px y una loseta 24 px), tiempos en segundos.
 
 export const PANTALLA = {
-  anchoMinimo: 270,      // píxeles de juego que caben a lo ancho como mínimo (móvil en vertical)
-  altoMinimo: 440,
+  anchoMinimo: 460,      // píxeles de juego que caben como mínimo (móvil en horizontal)
+  altoMinimo: 260,
+  joystick: { x: 46, y: 46 }, // centro del joystick, medido desde la esquina inferior izquierda
   oscuridad: 0.34,       // 0 = de día; cuanto más alto, más de noche (las farolas y el fuego iluminan)
 };
 
