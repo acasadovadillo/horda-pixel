@@ -1,11 +1,20 @@
 { "frames": [
    {
-    "filename": "barril.aseprite",
-    "frame": { "x": 0, "y": 0, "w": 10, "h": 13 },
+    "filename": "barril 0.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 16, "h": 22 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 10, "h": 13 },
-    "sourceSize": { "w": 10, "h": 13 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 22 },
+    "sourceSize": { "w": 16, "h": 22 },
+    "duration": 100
+   },
+   {
+    "filename": "barril 1.aseprite",
+    "frame": { "x": 16, "y": 0, "w": 16, "h": 22 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 22 },
+    "sourceSize": { "w": 16, "h": 22 },
     "duration": 100
    }
  ],
@@ -14,9 +23,12 @@
   "version": "1.3.18.6-x64",
   "image": "barril.png",
   "format": "RGBA8888",
-  "size": { "w": 10, "h": 13 },
+  "size": { "w": 32, "h": 22 },
   "scale": "1",
   "frameTags": [
+  ],
+  "slices": [
+   { "name": "base", "keys": [{ "frame": 0, "bounds": {"x": 8, "y": 21, "w": 1, "h": 1 } }] }
   ]
  }
 }

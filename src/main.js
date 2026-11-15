@@ -3,6 +3,7 @@ import { cargarSprites } from "./sprites.js";
 import { iniciarEntrada, entrada } from "./entrada.js";
 import { Juego } from "./juego.js";
 import { PANTALLA } from "./config.js";
+import { ANCHO, T } from "./mapa.js";
 
 const lienzo = document.getElementById("juego");
 const g = lienzo.getContext("2d");
@@ -14,8 +15,10 @@ function ajustar() {
   const dpr = window.devicePixelRatio || 1;
   const marco = document.getElementById("marco");
   const devW = Math.floor(marco.clientWidth * dpr), devH = Math.floor(marco.clientHeight * dpr);
-  escala = Math.max(1, Math.floor(Math.min(devW / PANTALLA.anchoMinimo, devH / 320)));
-  const w = Math.min(Math.floor(devW / escala), 256);      // el mapa mide 256 px de ancho
+  // Escala entera si es grande; si no, en medios para no dejar los muñecos diminutos (móviles con 2x).
+  const k = Math.min(devW / PANTALLA.anchoMinimo, devH / PANTALLA.altoMinimo);
+  escala = k >= 3 ? Math.floor(k) : Math.max(1, Math.floor(k * 2) / 2);
+  const w = Math.min(Math.floor(devW / escala), ANCHO * T);   // nunca más ancho que el mapa
   const h = Math.floor(devH / escala);
   bajo.width = w; bajo.height = h;
   lienzo.width = w * escala; lienzo.height = h * escala;
@@ -37,7 +40,9 @@ function pintar() {
 }
 
 async function arrancar() {
-  await cargarSprites();
+  // ?assets=carpeta permite probar con otro juego de sprites (por ejemplo los maniquíes de arte/maniquies.py)
+  const carpeta = new URLSearchParams(location.search).get("assets");
+  await cargarSprites(/^[a-z0-9_-]+$/i.test(carpeta || "") ? carpeta + "/" : "assets/");
   juego = new Juego();
   ajustar();
   window.addEventListener("resize", ajustar);

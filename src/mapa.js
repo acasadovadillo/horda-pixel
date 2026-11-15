@@ -1,22 +1,27 @@
 // Mapa principal: una carretera abandonada que sube hacia el norte, con campamento abajo.
-import { S } from "./sprites.js";
+import { S, punto, primero, cuantos } from "./sprites.js";
 
-export const T = 16;                    // tamaño de loseta
-export const ANCHO = 16, ALTO = 70;     // en losetas
+export const T = 24;                    // tamaño de loseta
+export const ANCHO = 17, ALTO = 70;     // en losetas
 
-// Fotogramas de suelo.aseprite
-const HIERBA = [0, 1, 2, 3], ASFALTO = [4, 5], GRIETA = 6, LINEA = 7, ACERA = 8,
-  BORDILLO_I = 9, BORDILLO_D = 10, TIERRA = 11;
+// Columnas: 0-3 hierba, 4 acera, 5 bordillo, 6-10 asfalto (8 = línea), 11 bordillo, 12 acera, 13-16 hierba.
+const COLUMNAS = ["hierba", "hierba", "hierba", "hierba", "acera", "bordillo_i", "asfalto", "asfalto", "linea",
+  "asfalto", "asfalto", "bordillo_d", "acera", "hierba", "hierba", "hierba", "hierba"];
+const CENTRO = 8.5 * T;                 // x del centro de la carretera
+const CALZADA = [6 * T, 11 * T];        // x de inicio y fin del asfalto
 
-// Caja de choque de cada objeto, relativa a su base (centro inferior del sprite).
+// Caja de choque de cada objeto, relativa a su punto base (centro inferior apoyado en el suelo).
 const CHOQUE = {
-  coche: { w: 20, h: 30, dy: 2 },
-  barril: { w: 10, h: 6 },
-  caja: { w: 12, h: 7 },
-  sacos: { w: 46, h: 10 },
-  arbol: { w: 6, h: 4, dy: 1 },
-  farola: { w: 4, h: 3, dy: 1 },
-  hoguera: { w: 10, h: 5 },
+  coche: { w: 32, h: 48, dy: 2 },
+  barril: { w: 13, h: 7 },
+  caja: { w: 18, h: 10 },
+  sacos: { w: 68, h: 14 },
+  arbol: { w: 8, h: 5, dy: 1 },
+  farola: { w: 5, h: 4 },
+  hoguera: { w: 14, h: 7 },
+  neumaticos: { w: 18, h: 9 },
+  contenedor: { w: 32, h: 16 },
+  barrera: { w: 38, h: 9 },
 };
 
 function azar(semilla) {
@@ -26,102 +31,145 @@ function azar(semilla) {
 
 export function crearMapa() {
   const r = azar(2026);
-  const losetas = [];
-  for (let y = 0; y < ALTO; y++) {
-    const fila = [];
-    for (let x = 0; x < ANCHO; x++) {
-      let t;
-      if (x <= 3 || x >= 13) t = HIERBA[Math.floor(r() * r() * 4)];
-      else if (x === 4 || x === 12) t = ACERA;
-      else if (x === 5) t = BORDILLO_I;
-      else if (x === 11) t = BORDILLO_D;
-      else if (x === 8 && y % 2 === 0) t = LINEA;
-      else t = r() < 0.08 ? GRIETA : ASFALTO[Math.floor(r() * 2)];
-      fila.push(t);
-    }
-    losetas.push(fila);
-  }
-  // Calvas de tierra en la hierba
-  for (let i = 0; i < 18; i++) {
-    const x = r() < 0.5 ? Math.floor(r() * 3) : 13 + Math.floor(r() * 3);
-    const y = Math.floor(r() * ALTO);
-    losetas[y][x] = TIERRA;
-    if (r() < 0.5 && y + 1 < ALTO) losetas[y + 1][x] = TIERRA;
-  }
+  const entero = (n) => Math.floor(r() * n);
+  const variante = (tipo, pesos) => {
+    const n = S[tipo].frames.length;
+    if (!pesos) return entero(n);
+    let x = r(), i = 0;
+    while (i < pesos.length - 1 && x > pesos[i]) { x -= pesos[i]; i++; }
+    return Math.min(i, n - 1);
+  };
 
+  // ------------------------------------------------------------ suelo
+  const su = S.suelo;
+  const loseta = (tag, i) => primero(su, tag) + (i % cuantos(su, tag));
+  const suelo = document.createElement("canvas");
+  suelo.width = ANCHO * T; suelo.height = ALTO * T;
+  const g = suelo.getContext("2d");
+  for (let y = 0; y < ALTO; y++) for (let x = 0; x < ANCHO; x++) {
+    let tag = COLUMNAS[x], i = 0;
+    if (tag === "hierba") {
+      if (r() < 0.07) { tag = "tierra"; i = entero(8); }
+      else i = r() < 0.55 ? 0 : 1 + entero(3);
+    } else if (tag === "asfalto") {
+      if (r() < 0.07) { tag = "grieta"; i = entero(8); }
+      else i = r() < 0.5 ? 0 : 1 + entero(3);
+    } else if (tag === "linea") {
+      if (y % 2) { tag = "asfalto"; i = entero(4); }
+    } else if (tag === "acera") i = entero(8);
+    const f = su.frames[loseta(tag, i)];
+    g.drawImage(su.img, f.x, f.y, T, T, x * T, y * T, T, T);
+  }
+  const calco = (nombre, i, x, y, alfa = 1) => {
+    const sp = S[nombre], f = sp.frames[i % sp.frames.length];
+    g.globalAlpha = alfa;
+    g.drawImage(sp.img, f.x, f.y, f.w, f.h, Math.round(x - f.w / 2), Math.round(y - f.h / 2), f.w, f.h);
+    g.globalAlpha = 1;
+  };
+  const enCalzada = () => CALZADA[0] + 14 + r() * (CALZADA[1] - CALZADA[0] - 28);
+  const enAcera = () => (r() < 0.5 ? 4 : 12) * T + 12 + (r() - 0.5) * 8;
+  const enHierba = () => (r() < 0.5 ? 14 + r() * 70 : 13 * T + 12 + r() * 70);
+  const alto = ALTO * T;
+  // detalles: 0 papeles, 1 hojas, 2 frenada, 3 aceite, 4 alcantarilla, 5 cascotes, 6 cristales, 7 hierbajos
+  for (let i = 0; i < 4; i++) calco("detalles", 4, CALZADA[0] + 30 + r() * 60, 120 + i * 400 + r() * 200);
+  for (let i = 0; i < 9; i++) calco("detalles", 2, enCalzada(), r() * alto, 0.8);
+  for (let i = 0; i < 9; i++) calco("detalles", 3, enCalzada(), r() * alto, 0.85);
+  for (let i = 0; i < 16; i++) calco("detalles", 0, r() < 0.6 ? enCalzada() : enAcera(), r() * alto);
+  for (let i = 0; i < 26; i++) calco("detalles", 1, r() < 0.6 ? enHierba() : enAcera(), r() * alto);
+  for (let i = 0; i < 12; i++) calco("detalles", 5, r() < 0.5 ? enCalzada() : enAcera(), r() * alto);
+  for (let i = 0; i < 14; i++) calco("detalles", 7, (r() < 0.5 ? 5 : 11) * T + 12 + (r() - 0.5) * 14, r() * alto);
+  for (let i = 0; i < 16; i++) calco("manchas", entero(8), enCalzada(), r() * (alto - 240), 0.7);
+
+  // ------------------------------------------------------------ objetos
   const objetos = [];
-  const poner = (tipo, x, y) => {
-    const o = { tipo, x: Math.round(x), y: Math.round(y), t0: r() * 3 };
+  const poner = (tipo, x, y, v) => {
+    const sp = S[tipo];
+    const f = v === undefined ? variante(tipo) : Math.min(v, sp.frames.length - 1);
+    const o = { tipo, x: Math.round(x), y: Math.round(y), f, t0: r() * 3 };
+    o.base = punto(sp, "base", f, { x: Math.floor(sp.w / 2), y: sp.h - 2 });
     const c = CHOQUE[tipo];
     if (c) o.caja = { x: o.x - c.w / 2, y: o.y - c.h - (c.dy || 0), w: c.w, h: c.h };
+    if (tipo === "farola" && f === 0) {
+      const l = punto(sp, "luz", f, { x: 8, y: 6 });
+      o.luz = { x: o.x - o.base.x + l.x, y: o.y - o.base.y + l.y + 40, r: 78 };
+    }
+    if (tipo === "hoguera") o.luz = { x: o.x, y: o.y - 12, r: 66, fuego: true };
     objetos.push(o);
     return o;
   };
 
   const campamento = (ALTO - 7) * T;   // fila de sacos, abajo del todo
 
+  // Campamento (lo primero, para que tenga prioridad): sacos terreros con un hueco en el centro,
+  // barreras a los lados y dos hogueras
+  poner("sacos", CENTRO - 60, campamento);
+  poner("sacos", CENTRO + 60, campamento);
+  poner("barrera", 4 * T + 16, campamento + 2);
+  poner("barrera", 12 * T + 8, campamento + 2);
+  poner("hoguera", 5 * T + 4, campamento + 52);
+  poner("hoguera", 12 * T - 4, campamento + 52);
+  poner("caja", CENTRO - 46, campamento + 78, 1);
+  poner("caja", CENTRO - 64, campamento + 84, 0);
+  poner("barril", CENTRO + 50, campamento + 82, 0);
+  poner("neumaticos", CENTRO + 70, campamento + 88);
+
   // Árboles y arbustos en las cunetas
-  for (let y = 2; y < ALTO - 2; y += 3 + Math.floor(r() * 3)) {
-    poner("arbol", 14 + r() * 26, y * T + r() * 10);
-    if (r() < 0.8) poner("arbol", 214 + r() * 30, y * T + 20 + r() * 12);
-    if (r() < 0.6) poner("arbusto", 8 + r() * 50, y * T + 30);
-    if (r() < 0.6) poner("arbusto", 210 + r() * 40, y * T + 8);
+  for (let y = 2; y < ALTO - 1; y += 3 + entero(3)) {
+    poner("arbol", 18 + r() * 44, y * T + r() * 14, variante("arbol", [0.55, 0.25, 0.2]));
+    if (r() < 0.85) poner("arbol", 13 * T + 30 + r() * 44, y * T + 30 + r() * 18, variante("arbol", [0.55, 0.25, 0.2]));
+    if (r() < 0.7) poner("arbusto", 12 + r() * 70, y * T + 44, variante("arbusto", [0.6, 0.4]));
+    if (r() < 0.7) poner("arbusto", 13 * T + 14 + r() * 70, y * T + 12, variante("arbusto", [0.6, 0.4]));
   }
-  // Farolas en las aceras
-  for (let y = 4; y < ALTO - 8; y += 7) {
-    poner("farola", 4 * T + 8, y * T);
-    poner("farola", 12 * T + 8, y * T + 3 * T);
+  // Farolas en las aceras (unas encendidas y otras rotas)
+  for (let y = 4; y < ALTO - 3; y += 7) {
+    poner("farola", 4 * T + 13, y * T, r() < 0.6 ? 0 : 1);
+    poner("farola", 12 * T + 11, y * T + 3 * T, r() < 0.6 ? 0 : 1);
   }
   // Coches abandonados y cosas tiradas en la carretera (no en el campamento)
-  for (let y = 4; y < ALTO - 14; y += 7 + Math.floor(r() * 5)) {
-    const carril = r() < 0.5 ? 6.5 : 9.6;
-    const cx = carril * T + r() * 10;
-    poner("coche", cx, y * T + 34);
-    if (r() < 0.7) poner(r() < 0.5 ? "barril" : "caja", cx + (r() < 0.5 ? -20 : 20), y * T + 30 + r() * 20);
+  for (let y = 4; y < ALTO - 15; y += 7 + entero(5)) {
+    const izq = r() < 0.5;
+    const cx = (izq ? 6 * T + 26 : 9 * T + 22) + r() * 12;
+    const cy = y * T + 50;
+    poner("coche", cx, cy);
+    calco("detalles", 6, cx + (izq ? 22 : -22), cy - 30 + r() * 20);
+    calco("detalles", 3, cx, cy - 20, 0.8);
+    const lado = izq ? 26 : -26;
+    if (r() < 0.7) poner(r() < 0.5 ? "barril" : "caja", cx + lado, cy - 10 - r() * 30);
+    if (r() < 0.5) poner("cono", cx + lado * (1 + r() * 0.6), cy + 6 + r() * 14);
+    if (r() < 0.35) poner("neumaticos", cx - lado * 0.2, cy + 16);
   }
-  for (let i = 0; i < 10; i++) {
-    const y = 3 + Math.floor(r() * (ALTO - 16));
-    poner(r() < 0.5 ? "barril" : "caja", (r() < 0.5 ? 4 : 12) * T + 8 + (r() - 0.5) * 6, y * T);
+  for (let i = 0; i < 9; i++) {
+    const y = 3 + entero(ALTO - 18);
+    poner(r() < 0.5 ? "barril" : "caja", enAcera(), y * T);
   }
-  // Campamento: sacos terreros con un hueco en el centro y dos hogueras
-  poner("sacos", 5 * T + 24, campamento);
-  poner("sacos", 11 * T - 8, campamento);
-  poner("hoguera", 3 * T, campamento + 34);
-  poner("hoguera", 13 * T, campamento + 34);
-  poner("caja", 6 * T, campamento + 50);
-  poner("barril", 10 * T + 8, campamento + 54);
+  for (let i = 0; i < 4; i++) poner("contenedor", (r() < 0.5 ? 4 * T + 2 : 13 * T - 2), (8 + i * 13 + entero(5)) * T);
+  for (let i = 0; i < 3; i++) poner("barrera", enCalzada(), (10 + i * 16 + entero(6)) * T);
+  for (let i = 0; i < 5; i++) poner("cono", enCalzada(), (6 + entero(ALTO - 24)) * T);
 
-  // Quita lo que caiga sobre el punto de salida del jugador
-  const salida = { x: 8 * T, y: campamento + 40 };
+  // Quita lo que caiga sobre el punto de salida del jugador o encima de otra cosa
+  const salida = { x: CENTRO, y: campamento + 60 };
   for (let i = objetos.length - 1; i >= 0; i--) {
     const o = objetos[i];
-    if (o.tipo !== "sacos" && o.tipo !== "hoguera" && Math.hypot(o.x - salida.x, o.y - salida.y) < 22) objetos.splice(i, 1);
+    if (o.tipo !== "sacos" && o.tipo !== "hoguera" && Math.hypot(o.x - salida.x, o.y - salida.y) < 30) objetos.splice(i, 1);
+  }
+  const solapan = (a, b) => a.x < b.x + b.w + 2 && b.x < a.x + a.w + 2 && a.y < b.y + b.h + 2 && b.y < a.y + a.h + 2;
+  for (let i = objetos.length - 1; i >= 0; i--) {
+    const o = objetos[i];
+    if (!o.caja) continue;
+    if (objetos.some((p, k) => k < i && p.caja && solapan(o.caja, p.caja))) objetos.splice(i, 1);
   }
 
   const cajas = objetos.filter((o) => o.caja).map((o) => o.caja);
+  const luces = objetos.filter((o) => o.luz).map((o) => o.luz);
 
-  // El suelo se pinta una sola vez en un lienzo grande; la sangre se queda pintada encima.
-  const suelo = document.createElement("canvas");
-  suelo.width = ANCHO * T; suelo.height = ALTO * T;
-  const g = suelo.getContext("2d");
-  const ss = S.suelo;
-  for (let y = 0; y < ALTO; y++) for (let x = 0; x < ANCHO; x++) {
-    const f = ss.frames[losetas[y][x]];
-    g.drawImage(ss.img, f.x, f.y, T, T, x * T, y * T, T, T);
-  }
-  // Manchas viejas para que la carretera no esté limpia
-  for (let i = 0; i < 14; i++) manchar(g, 5 * T + r() * 6 * T, r() * (ALTO - 10) * T, Math.floor(r() * 3), 0.6);
-
-  return {
-    ancho: ANCHO * T, alto: ALTO * T, objetos, cajas, suelo, sueloCtx: g, salida,
-    campamento,
-  };
+  return { ancho: ANCHO * T, alto, objetos, cajas, luces, suelo, sueloCtx: g, salida, campamento };
 }
 
+// Pinta una mancha de sangre en el suelo para siempre.
 export function manchar(g, x, y, i, alfa = 1) {
   const m = S.manchas, f = m.frames[i % m.frames.length];
   g.globalAlpha = alfa;
-  g.drawImage(m.img, f.x, f.y, f.w, f.h, Math.round(x - 8), Math.round(y - 8), f.w, f.h);
+  g.drawImage(m.img, f.x, f.y, f.w, f.h, Math.round(x - f.w / 2), Math.round(y - f.h / 2), f.w, f.h);
   g.globalAlpha = 1;
 }
 
@@ -144,7 +192,7 @@ export function resolverChoques(mapa, e, radio) {
     }
   }
   e.x = Math.max(radio, Math.min(mapa.ancho - radio, e.x));
-  e.y = Math.max(radio + 4, Math.min(mapa.alto - radio, e.y));
+  e.y = Math.max(radio + 6, Math.min(mapa.alto - radio, e.y));
 }
 
 export function chocaCon(mapa, x, y, radio) {

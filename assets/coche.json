@@ -1,11 +1,29 @@
 { "frames": [
    {
-    "filename": "coche.aseprite",
-    "frame": { "x": 0, "y": 0, "w": 22, "h": 34 },
+    "filename": "coche 0.aseprite",
+    "frame": { "x": 0, "y": 0, "w": 40, "h": 64 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 22, "h": 34 },
-    "sourceSize": { "w": 22, "h": 34 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 64 },
+    "sourceSize": { "w": 40, "h": 64 },
+    "duration": 100
+   },
+   {
+    "filename": "coche 1.aseprite",
+    "frame": { "x": 40, "y": 0, "w": 40, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 64 },
+    "sourceSize": { "w": 40, "h": 64 },
+    "duration": 100
+   },
+   {
+    "filename": "coche 2.aseprite",
+    "frame": { "x": 80, "y": 0, "w": 40, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 64 },
+    "sourceSize": { "w": 40, "h": 64 },
     "duration": 100
    }
  ],
@@ -14,9 +32,12 @@
   "version": "1.3.18.6-x64",
   "image": "coche.png",
   "format": "RGBA8888",
-  "size": { "w": 22, "h": 34 },
+  "size": { "w": 120, "h": 64 },
   "scale": "1",
   "frameTags": [
+  ],
+  "slices": [
+   { "name": "base", "keys": [{ "frame": 0, "bounds": {"x": 20, "y": 62, "w": 1, "h": 1 } }] }
   ]
  }
 }

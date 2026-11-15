@@ -1,49 +1,48 @@
 // Todos los números del juego en un solo sitio. Distancias en píxeles del juego
-// (una loseta = 16 px; el personaje mide 16x20), tiempos en segundos.
+// (20 px = 1 m; una persona mide 35 px y una loseta 24 px), tiempos en segundos.
 
 export const PANTALLA = {
-  anchoMinimo: 180,      // píxeles de juego que caben a lo ancho como mínimo (móvil en vertical)
+  anchoMinimo: 270,      // píxeles de juego que caben a lo ancho como mínimo (móvil en vertical)
+  altoMinimo: 440,
+  oscuridad: 0.34,       // 0 = de día; cuanto más alto, más de noche (las farolas y el fuego iluminan)
 };
 
 export const JUGADOR = {
   vida: 100,
-  velocidad: 58,         // px/s
-  radio: 4,              // para chocar con cosas
-  recogerMonedas: 30,    // radio del imán de monedas
+  velocidad: 87,         // px/s
+  radio: 6,              // para chocar con cosas
+  recogerMonedas: 45,    // radio del imán de monedas
 };
 
-// dano por bala, disparos por segundo, balas por cargador, recarga en s,
+// dano por bala, cadencia en disparos por segundo, balas por cargador, recarga en s,
 // alcance (px) para apuntar solo, dispersion en grados, perdigones por disparo,
 // empuje (px que retrocede el zombi por impacto), critico = probabilidad de doble daño.
 export const ARMAS = {
   pistola: {
     nombre: "PISTOLA", dano: 12, cadencia: 2.6, cargador: 12, recarga: 1.1,
-    alcance: 110, velocidadBala: 280, dispersion: 3, perdigones: 1, empuje: 3,
-    critico: 0.1, sacudida: 0.6, sonido: "pistola",
-    mano: { x: 2, y: 2 },          // punto del sprite que agarra la mano
+    alcance: 165, velocidadBala: 420, dispersion: 3, perdigones: 1, empuje: 4.5,
+    critico: 0.1, sacudida: 0.9, sonido: "pistola",
   },
   subfusil: {
     nombre: "SUBFUSIL", dano: 7, cadencia: 9, cargador: 30, recarga: 1.7,
-    alcance: 95, velocidadBala: 300, dispersion: 9, perdigones: 1, empuje: 1.5,
-    critico: 0.08, sacudida: 0.5, sonido: "subfusil",
-    mano: { x: 3, y: 2 },
+    alcance: 142, velocidadBala: 450, dispersion: 9, perdigones: 1, empuje: 2.2,
+    critico: 0.08, sacudida: 0.7, sonido: "subfusil",
   },
   escopeta: {
     nombre: "ESCOPETA", dano: 8, cadencia: 1.1, cargador: 6, recarga: 2.1,
-    alcance: 72, velocidadBala: 260, dispersion: 24, perdigones: 6, empuje: 6,
-    critico: 0.05, sacudida: 2.2, sonido: "escopeta",
-    mano: { x: 5, y: 2 },
+    alcance: 108, velocidadBala: 390, dispersion: 24, perdigones: 6, empuje: 9,
+    critico: 0.05, sacudida: 3.2, sonido: "escopeta",
   },
 };
 
 export const ZOMBIS = {
   normal: {
-    sprite: "zombi", vida: 36, velocidad: 20, dano: 10, cadencia: 1.0,
-    alcance: 10, radio: 4.5, monedas: [1, 2],
+    sprites: ["zombi", "zombi_b", "zombi_c"], vida: 36, velocidad: 30, dano: 10, cadencia: 1.0,
+    alcance: 15, radio: 7, monedas: [1, 2],
   },
   corredor: {
-    sprite: "corredor", vida: 22, velocidad: 38, dano: 6, cadencia: 0.7,
-    alcance: 9, radio: 4, monedas: [1, 3],
+    sprites: ["corredor"], vida: 22, velocidad: 57, dano: 6, cadencia: 0.7,
+    alcance: 14, radio: 6, monedas: [1, 3],
   },
 };
 
@@ -57,7 +56,7 @@ export const OLEADAS = {
   corredoresPorOleada: 0.1,       // proporción extra de corredores por oleada (máximo 0.45)
   vidaExtraPorOleada: 0.08,       // +8 % de vida por oleada
   maximoVivos: 40,
-  distanciaAparicion: 200,       // px máximos por encima del jugador a los que sale un zombi
+  distanciaAparicion: 300,        // px máximos por encima del jugador a los que sale un zombi
 };
 
 export const BOTIN = {

@@ -1,20 +1,20 @@
 { "frames": [
    {
     "filename": "joystick 0.aseprite",
-    "frame": { "x": 0, "y": 0, "w": 34, "h": 34 },
+    "frame": { "x": 0, "y": 0, "w": 52, "h": 52 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 34, "h": 34 },
-    "sourceSize": { "w": 34, "h": 34 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 52, "h": 52 },
+    "sourceSize": { "w": 52, "h": 52 },
     "duration": 100
    },
    {
     "filename": "joystick 1.aseprite",
-    "frame": { "x": 34, "y": 0, "w": 34, "h": 34 },
+    "frame": { "x": 52, "y": 0, "w": 52, "h": 52 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 34, "h": 34 },
-    "sourceSize": { "w": 34, "h": 34 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 52, "h": 52 },
+    "sourceSize": { "w": 52, "h": 52 },
     "duration": 100
    }
  ],
@@ -23,11 +23,13 @@
   "version": "1.3.18.6-x64",
   "image": "joystick.png",
   "format": "RGBA8888",
-  "size": { "w": 68, "h": 34 },
+  "size": { "w": 104, "h": 52 },
   "scale": "1",
   "frameTags": [
    { "name": "base", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
    { "name": "boton", "from": 1, "to": 1, "direction": "forward", "color": "#000000ff" }
+  ],
+  "slices": [
   ]
  }
 }

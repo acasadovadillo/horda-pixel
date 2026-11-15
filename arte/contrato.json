@@ -2,6 +2,7 @@
   "jugador":  { "w": 40, "h": 40, "tags": { "quieto": 4, "correr": 8, "morir": 6 }, "puntos": ["pies", "hombro"], "grupo": "jugador" },
   "zombi":    { "w": 40, "h": 40, "tags": { "andar": 8, "atacar": 4, "morir": 6 }, "puntos": ["pies"], "grupo": "zombi" },
   "zombi_b":  { "w": 40, "h": 40, "tags": { "andar": 8, "atacar": 4, "morir": 6 }, "puntos": ["pies"], "grupo": "zombi" },
+  "zombi_c":  { "w": 40, "h": 40, "tags": { "andar": 8, "atacar": 4, "morir": 6 }, "puntos": ["pies"], "grupo": "zombi" },
   "corredor": { "w": 40, "h": 40, "tags": { "andar": 8, "atacar": 4, "morir": 6 }, "puntos": ["pies"], "grupo": "corredor" },
 
   "brazos_pistola":  { "w": 44, "h": 20, "tags": { "apuntar": 1, "disparar": 2, "recargar": 4 }, "puntos": ["hombro", "boca", "casquillo"], "grupo": "armas" },

@@ -1,19 +1,23 @@
-// Partida: jugador, zombis, balas, botín, oleadas, cámara, interfaz.
-import { JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN } from "./config.js";
-import { S, fotograma, duracion, dibujar, texto, anchoTexto } from "./sprites.js";
+// Partida: jugador, zombis, balas, botín, oleadas, cámara, luces, interfaz.
+import { PANTALLA, JUGADOR, ARMAS, ZOMBIS, OLEADAS, BOTIN } from "./config.js";
+import { S, punto, fotograma, fotogramaPorAvance, duracion, primero, dibujar, dibujarAnclado, texto, anchoTexto } from "./sprites.js";
 import { crearMapa, manchar, resolverChoques, chocaCon } from "./mapa.js";
 import { entrada, leerMovimiento, RADIO_STICK } from "./entrada.js";
 import { sonar, desbloquear, silenciar, silenciado } from "./audio.js";
 
 const ORDEN_ARMAS = ["pistola", "subfusil", "escopeta"];
+const PIES = { x: 20, y: 38 };          // punto de los pies por defecto en los lienzos de 40x40
+const HOMBRO = { x: 20, y: 13 };
+const PECHO = 19;                       // px sobre los pies: adonde se apunta y donde impactan las balas
+const RADIO_CUERPO = 9;                 // radio del blanco que ofrece un zombi a las balas
+const vibrar = (p) => { if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(p); };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const rndInt = (a, b) => Math.floor(rnd(a, b + 1));
 
 export class Juego {
   constructor() {
     this.mapa = crearMapa();
-    this.estado = "inicio";
-    this.ancho = 200; this.alto = 350;
+    this.ancho = 270; this.alto = 480;
     this.reiniciar();
     this.estado = "inicio";
     entrada.alPulsar.push((c) => this.tecla(c));
@@ -27,11 +31,12 @@ export class Juego {
       x: s.x, y: s.y, vida: JUGADOR.vida, arma: "pistola",
       cargador: Object.fromEntries(ORDEN_ARMAS.map((a) => [a, ARMAS[a].cargador])),
       recarga: 0, espera: 0, angulo: -Math.PI / 2, voltear: false, anim: 0, andando: false,
-      golpe: 0, muerto: 0, sinBlanco: 0, retroceso: 0,
+      golpe: 0, muerto: 0, sinBlanco: 0, tDisparo: 9,
     };
     this.zombis = []; this.balas = []; this.botin = []; this.flotantes = [];
     this.particulas = []; this.fogonazos = [];
-    this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0 };
+    this.blanco = null;
+    this.oleada = { n: 0, porSalir: 0, t: 0, descanso: 2.5, cartel: 0, superada: 0 };
     this.stats = { bajas: 0, monedas: 0, tiempo: 0, disparos: 0, impactos: 0, dano: 0, recibido: 0 };
     this.camara = { x: s.x - this.ancho / 2, y: s.y - this.alto * 0.6 };
     this.sacudida = 0;
@@ -60,7 +65,7 @@ export class Juego {
   cambiarArma(a) {
     const j = this.jugador;
     if (!a || a === j.arma || j.muerto) return;
-    j.arma = a; j.recarga = 0; j.espera = 0.15;
+    j.arma = a; j.recarga = 0; j.espera = 0.15; j.tDisparo = 9;
     sonar("recargado");
   }
 
@@ -94,16 +99,16 @@ export class Juego {
     j.golpe = Math.max(0, j.golpe - dt);
     if (j.muerto) {
       j.muerto += dt;
-      if (j.muerto > 2.2 && this.estado === "jugando") this.estado = "fin";
+      if (j.muerto > 2.4 && this.estado === "jugando") this.estado = "fin";
       return;
     }
     leerMovimiento();
-    const mx = entrada.mx, my = entrada.my;
-    j.andando = Math.hypot(mx, my) > 0.1;
+    const mx = entrada.mx, my = entrada.my, fuerza = Math.hypot(mx, my);
+    j.andando = fuerza > 0.1;
     j.x += mx * JUGADOR.velocidad * dt;
     j.y += my * JUGADOR.velocidad * dt;
     resolverChoques(this.mapa, j, JUGADOR.radio);
-    j.anim += dt * (j.andando ? 0.6 + 0.6 * Math.hypot(mx, my) : 1);
+    j.anim += dt * (j.andando ? 0.45 + 0.55 * fuerza : 1);
     if (j.andando && !this.blanco) j.angulo = Math.atan2(my, mx);
   }
 
@@ -112,27 +117,43 @@ export class Juego {
     let mejor = null, md = alcance * alcance;
     for (const z of this.zombis) {
       if (z.muerto || z.aparece > 0.2) continue;
-      const d = (z.x - j.x) ** 2 + (z.y - 7 - (j.y - 8)) ** 2;
+      const d = (z.x - j.x) ** 2 + (z.y - j.y) ** 2;
       if (d < md) { md = d; mejor = z; }
     }
     return mejor;
   }
 
-  // Punto de la mano y de la boca del cañón según el ángulo de apuntado.
+  cuadroJugador() {
+    const j = this.jugador, spr = S.jugador;
+    if (j.muerto) return fotograma(spr, "morir", j.muerto, false);
+    return fotograma(spr, j.andando ? "correr" : "quieto", j.anim);
+  }
+
+  // Posición en el mundo del hombro (donde giran los brazos), la boca del cañón y la ventana de expulsión.
   geometriaArma() {
-    const j = this.jugador, a = ARMAS[j.arma], spr = S[j.arma];
-    const izq = Math.cos(j.angulo) < 0;
-    const mano = { x: j.x + (izq ? -2 : 2), y: j.y - 8 };
-    const largo = spr.w - a.mano.x - j.retroceso;
-    const boca = { x: mano.x + Math.cos(j.angulo) * largo, y: mano.y + Math.sin(j.angulo) * largo };
-    return { mano, boca, izq };
+    const j = this.jugador, cuerpo = S.jugador, br = S["brazos_" + j.arma];
+    const i = this.cuadroJugador();
+    const pies = punto(cuerpo, "pies", i, PIES), h = punto(cuerpo, "hombro", i, HOMBRO);
+    const izq = j.voltear;
+    const hombro = { x: Math.round(j.x) + (izq ? pies.x - h.x : h.x - pies.x), y: Math.round(j.y) - (pies.y - h.y) };
+    const hb = punto(br, "hombro", 0, { x: 8, y: 10 });
+    const c = Math.cos(j.angulo), s = Math.sin(j.angulo);
+    const alMundo = (p) => {
+      const vx = p.x - hb.x, vy = (p.y - hb.y) * (izq ? -1 : 1);
+      return { x: hombro.x + 0.5 + vx * c - vy * s, y: hombro.y + 0.5 + vx * s + vy * c };
+    };
+    return {
+      hombro, hb, izq,
+      boca: alMundo(punto(br, "boca", 0, { x: 30, y: 9 })),
+      casquillo: alMundo(punto(br, "casquillo", 0, { x: 20, y: 8 })),
+    };
   }
 
   disparar(dt) {
     const j = this.jugador, a = ARMAS[j.arma];
     if (j.muerto) return;
     j.espera = Math.max(0, j.espera - dt);
-    j.retroceso = Math.max(0, j.retroceso - dt * 20);
+    j.tDisparo += dt;
     if (j.recarga > 0) {
       j.recarga -= dt;
       if (j.recarga <= 0) { j.recarga = 0; j.cargador[j.arma] = a.cargador; sonar("recargado"); }
@@ -141,8 +162,7 @@ export class Juego {
     this.blanco = z;
     if (z) {
       j.sinBlanco = 0;
-      const objetivo = Math.atan2(z.y - 7 - (j.y - 8), z.x - j.x);
-      j.angulo = objetivo;
+      j.angulo = Math.atan2((z.y - PECHO) - (j.y - 25), z.x - j.x);
     } else {
       j.sinBlanco += dt;
       if (j.sinBlanco > 1.2 && j.cargador[j.arma] < a.cargador) this.empezarRecarga();
@@ -154,24 +174,23 @@ export class Juego {
     // ¡Fuego!
     j.cargador[j.arma]--;
     j.espera = 1 / a.cadencia;
-    j.retroceso = a.perdigones > 1 ? 3 : 1.5;
-    const { boca } = this.geometriaArma();
+    j.tDisparo = 0;
+    const geo = this.geometriaArma();
     for (let i = 0; i < a.perdigones; i++) {
       const ang = j.angulo + (Math.random() - 0.5) * (a.dispersion * Math.PI / 180);
       const v = a.velocidadBala * rnd(0.9, 1.1);
       this.balas.push({
-        x: boca.x, y: boca.y, px: boca.x, py: boca.y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
-        vida: (a.alcance * 1.25) / v, arma: j.arma,
+        x: geo.boca.x, y: geo.boca.y, px: geo.hombro.x, py: geo.hombro.y, nueva: true,
+        vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, vida: (a.alcance * 1.25) / v, arma: j.arma,
       });
     }
     this.stats.disparos += a.perdigones;
-    this.fogonazos.push({ x: boca.x, y: boca.y, ang: j.angulo, t: 0.06 });
-    // Casquillo que sale volando
+    this.fogonazos.push({ x: geo.boca.x, y: geo.boca.y, ang: j.angulo, t: 0 });
+    // Casquillo que sale volando hacia atrás
     const lado = j.voltear ? 1 : -1;
     this.particulas.push({
-      x: j.x, y: j.y - 9, z: 0, vx: lado * rnd(20, 40), vy: rnd(-10, 10), vz: rnd(40, 70),
-      color: a.perdigones > 1 ? "#c0392b" : "#ffe066", vida: 2.5, tam: 1, suelo: j.y - rnd(0, 4),
-      casquillo: true,
+      x: geo.casquillo.x, y: j.y - rnd(0, 5), z: j.y - geo.casquillo.y, vx: lado * rnd(25, 55), vy: rnd(-12, 12), vz: rnd(50, 90),
+      color: a.perdigones > 1 ? "#a8322a" : "#d9b24a", vida: 3, casquillo: true,
     });
     this.sacudida = Math.max(this.sacudida, a.sacudida);
     sonar(a.sonido, a.cadencia > 5 ? 0.06 : 0);
@@ -183,25 +202,25 @@ export class Juego {
     const c = this.camara, m = this.mapa, def = ZOMBIS[tipo];
     let x, y;
     for (let intento = 0; intento < 12; intento++) {
-      const lado = Math.random();
-      if (lado < 0.7 || c.y > m.alto - this.alto - 40) {        // por arriba, fuera de la pantalla
-        x = rnd(10, m.ancho - 10);
-        y = c.y - rnd(14, 50);
-      } else {                                                  // por un lado
-        x = Math.random() < 0.5 ? c.x - 14 : c.x + this.ancho + 14;
-        y = c.y + rnd(10, this.alto * 0.5);
+      if (Math.random() < 0.7 || c.y > m.alto - this.alto - 60) {   // por arriba, fuera de la pantalla
+        x = rnd(14, m.ancho - 14);
+        y = c.y - rnd(20, 70);
+      } else {                                                      // por un lado
+        x = Math.random() < 0.5 ? c.x - 20 : c.x + this.ancho + 20;
+        y = c.y + rnd(14, this.alto * 0.5);
       }
-      y = Math.max(y, this.jugador.y - OLEADAS.distanciaAparicion - rnd(0, 30));
-      if (y < 20) y = rnd(20, 60);
-      x = Math.max(8, Math.min(m.ancho - 8, x));
-      if (!chocaCon(m, x, y, def.radio + 1)) break;
+      y = Math.max(y, this.jugador.y - OLEADAS.distanciaAparicion - rnd(0, 45));
+      if (y < 30) y = rnd(30, 90);
+      x = Math.max(12, Math.min(m.ancho - 12, x));
+      if (!chocaCon(m, x, y, def.radio + 2)) break;
     }
     const fuerza = 1 + OLEADAS.vidaExtraPorOleada * (this.oleada.n - 1);
+    const spr = S[def.sprites[rndInt(0, def.sprites.length - 1)]];
     this.zombis.push({
-      tipo, def, x, y, vida: def.vida * fuerza, vidaMax: def.vida * fuerza,
+      tipo, def, spr, x, y, vida: def.vida * fuerza, vidaMax: def.vida * fuerza,
       vel: def.velocidad * rnd(0.85, 1.15), anim: rnd(0, 2), voltear: false,
       ataque: 0, espera: rnd(0, 0.5), golpe: 0, muerto: 0, barra: 0,
-      atasco: 0, desvio: 0, aparece: 0.6, lado: Math.random() < 0.5 ? 1 : -1, gruñe: rnd(2, 8),
+      atasco: 0, desvio: 0, aparece: 0.7, lado: Math.random() < 0.5 ? 1 : -1, gruñe: rnd(2, 8),
     });
   }
 
@@ -213,9 +232,9 @@ export class Juego {
       z.barra = Math.max(0, z.barra - dt);
       if (z.muerto) {
         z.muerto += dt;
-        if (!z.charco && z.muerto > 0.55) {
+        if (!z.charco && z.muerto > 0.6) {
           z.charco = true;
-          manchar(m.sueloCtx, z.x + 1, z.y - 1, rndInt(0, 2), 0.85);
+          manchar(m.sueloCtx, z.x + (z.voltear ? -4 : 4), z.y - 2, rndInt(0, 3), 0.85);
         }
         continue;
       }
@@ -229,18 +248,19 @@ export class Juego {
       const dx = j.x - z.x, dy = j.y - z.y, d = Math.hypot(dx, dy) || 1;
       z.voltear = dx < 0;
 
-      // Atacar
+      // Atacar: el golpe llega al empezar el segundo fotograma de la animación
       if (z.ataque > 0) {
         const antes = z.ataque;
         z.ataque -= dt;
-        const golpeEn = duracion(S[z.def.sprite], "atacar") * 0.45;
-        if (antes > golpeEn && z.ataque <= golpeEn && d <= z.def.alcance + 6 && !j.muerto) this.herirJugador(z.def.dano);
-        if (z.ataque <= 0) z.espera = Math.max(0, z.def.cadencia - duracion(S[z.def.sprite], "atacar"));
+        const total = duracion(z.spr, "atacar");
+        const golpeEn = total - z.spr.frames[primero(z.spr, "atacar")].dur;
+        if (antes > golpeEn && z.ataque <= golpeEn && d <= z.def.alcance + 9 && !j.muerto) this.herirJugador(z.def.dano);
+        if (z.ataque <= 0) z.espera = Math.max(0, z.def.cadencia - total);
         continue;
       }
       z.espera = Math.max(0, z.espera - dt);
       if (d <= z.def.alcance && !j.muerto) {
-        if (z.espera <= 0) { z.ataque = duracion(S[z.def.sprite], "atacar"); sonar("zarpazo", 0.05); }
+        if (z.espera <= 0) { z.ataque = duracion(z.spr, "atacar"); sonar("zarpazo", 0.05); }
         continue;
       }
       // Andar hacia el jugador; si se atasca, rodea el obstáculo un rato
@@ -284,39 +304,45 @@ export class Juego {
     j.vida = Math.max(0, j.vida - dano);
     j.golpe = 0.18;
     this.stats.recibido += dano;
-    this.sacudida = Math.max(this.sacudida, 2.5);
-    this.flotantes.push({ x: j.x, y: j.y - 22, t: 0, txt: "-" + dano, color: "#ff5a5a" });
+    this.sacudida = Math.max(this.sacudida, 3.5);
+    this.flotantes.push({ x: j.x, y: j.y - 44, t: 0, txt: "-" + dano, color: "#ff5a5a" });
+    for (let i = 0; i < 4; i++) this.gota(j.x, j.y, PECHO, rnd(-40, 40), rnd(-15, 15), rnd(20, 60));
     sonar("herido", 0.08);
-    navigator.vibrate?.(40);
+    vibrar(40);
     if (j.vida <= 0) {
       j.muerto = 0.0001;
       j.recarga = 0;
       sonar("muerte");
-      navigator.vibrate?.([80, 60, 160]);
-      manchar(this.mapa.sueloCtx, j.x, j.y - 1, 0, 0.9);
+      vibrar([80, 60, 160]);
+      manchar(this.mapa.sueloCtx, j.x, j.y - 2, 0, 0.9);
     }
+  }
+
+  gota(x, y, z, vx, vy, vz) {
+    this.particulas.push({
+      x, y: y + rnd(-3, 3), z, vx, vy, vz, vida: 6, mancha: true,
+      color: Math.random() < 0.5 ? "#7a121a" : "#520c12", tam: Math.random() < 0.3 ? 2 : 1,
+    });
   }
 
   // ------------------------------------------------------------------ balas
   moverBalas(dt) {
     for (const b of this.balas) {
-      b.px = b.x; b.py = b.y;
+      if (b.nueva) b.nueva = false;                // el primer tramo sale del hombro: no se salta a los zombis pegados
+      else { b.px = b.x; b.py = b.y; }
       b.x += b.vx * dt; b.y += b.vy * dt;
       b.vida -= dt;
       if (b.vida <= 0) continue;
-      // ¿Ha cruzado a algún zombi? (el cuerpo es un círculo de 6 px a media altura)
+      let mejor = null, mt = 2, mq = null;
       for (const z of this.zombis) {
         if (z.muerto || z.aparece > 0.2) continue;
-        const cx = z.x, cy = z.y - 8;
+        const cx = z.x, cy = z.y - PECHO;
         const sx = b.x - b.px, sy = b.y - b.py, l2 = sx * sx + sy * sy || 1;
         const t = Math.max(0, Math.min(1, ((cx - b.px) * sx + (cy - b.py) * sy) / l2));
         const qx = b.px + sx * t, qy = b.py + sy * t;
-        if ((qx - cx) ** 2 + (qy - cy) ** 2 < 36) {
-          this.impacto(z, b, qx, qy);
-          b.vida = 0;
-          break;
-        }
+        if ((qx - cx) ** 2 + (qy - cy) ** 2 < RADIO_CUERPO * RADIO_CUERPO && t < mt) { mejor = z; mt = t; mq = { x: qx, y: qy }; }
       }
+      if (mejor) { this.impacto(mejor, b, mq.x, mq.y); b.vida = 0; }
     }
     this.balas = this.balas.filter((b) => b.vida > 0);
   }
@@ -334,14 +360,11 @@ export class Juego {
     this.stats.impactos++;
     this.stats.dano += Math.min(dano, z.vida + dano);
     this.flotantes.push({
-      x: x + rnd(-3, 3), y: y - 6, t: 0, txt: String(Math.round(dano)) + (critico ? "!" : ""),
-      color: critico ? "#ffe066" : "#ffffff",
+      x: x + rnd(-4, 4), y: y - 12, t: 0, txt: String(Math.round(dano)) + (critico ? "!" : ""),
+      color: critico ? "#ffd84a" : "#ffffff",
     });
-    for (let i = 0; i < (critico ? 6 : 3); i++) {
-      this.particulas.push({
-        x, y: z.y, z: 8, vx: (b.vx / v) * rnd(15, 45) + rnd(-12, 12), vy: rnd(-8, 8), vz: rnd(10, 45),
-        color: Math.random() < 0.5 ? "#b0202c" : "#6e1119", vida: 6, tam: 1, suelo: z.y + rnd(-3, 3), mancha: true,
-      });
+    for (let i = 0; i < (critico ? 8 : 4); i++) {
+      this.gota(x, z.y, z.y - y, (b.vx / v) * rnd(20, 70) + rnd(-18, 18), rnd(-12, 12), rnd(15, 70));
     }
     sonar("impacto", 0.03);
     if (z.vida <= 0) this.matarZombi(z);
@@ -353,10 +376,10 @@ export class Juego {
     sonar("muereZombi", 0.05);
     const [a, b] = z.def.monedas;
     for (let i = 0, n = rndInt(a, b); i < n; i++) {
-      this.botin.push({ tipo: "moneda", x: z.x + rnd(-4, 4), y: z.y + rnd(-3, 3), z: 6, vz: rnd(30, 60), vx: rnd(-25, 25), vy: rnd(-15, 15), t: 0, anim: rnd(0, 1) });
+      this.botin.push({ tipo: "moneda", x: z.x + rnd(-6, 6), y: z.y + rnd(-4, 4), z: 10, vz: rnd(45, 90), vx: rnd(-38, 38), vy: rnd(-22, 22), t: 0, anim: rnd(0, 1) });
     }
     if (Math.random() < BOTIN.botiquin) {
-      this.botin.push({ tipo: "botiquin", x: z.x, y: z.y, z: 6, vz: 50, vx: 0, vy: 0, t: 0, anim: 0 });
+      this.botin.push({ tipo: "botiquin", x: z.x, y: z.y, z: 10, vz: 75, vx: 0, vy: 0, t: 0, anim: 0 });
     }
   }
 
@@ -365,24 +388,24 @@ export class Juego {
     for (const o of this.botin) {
       o.t += dt; o.anim += dt;
       if (o.z > 0 || o.vz > 0) {                     // cae rebotando
-        o.vz -= 220 * dt; o.z += o.vz * dt;
+        o.vz -= 330 * dt; o.z += o.vz * dt;
         o.x += o.vx * dt; o.y += o.vy * dt;
-        if (o.z <= 0) { o.z = 0; o.vz = o.vz < -30 ? -o.vz * 0.35 : 0; o.vx *= 0.5; o.vy *= 0.5; }
+        if (o.z <= 0) { o.z = 0; o.vz = o.vz < -45 ? -o.vz * 0.35 : 0; o.vx *= 0.5; o.vy *= 0.5; }
       }
       if (j.muerto) continue;
-      const dx = j.x - o.x, dy = j.y - 6 - o.y, d = Math.hypot(dx, dy);
-      const iman = o.tipo === "moneda" ? JUGADOR.recogerMonedas : 10;
+      const dx = j.x - o.x, dy = j.y - 8 - o.y, d = Math.hypot(dx, dy) || 1;
+      const iman = o.tipo === "moneda" ? JUGADOR.recogerMonedas : 15;
       if (d < iman && o.t > 0.35) {
-        const v = 160 * (1 - d / (iman + 1)) + 40;
+        const v = 240 * (1 - d / (iman + 1)) + 60;
         o.x += (dx / d) * v * dt; o.y += (dy / d) * v * dt;
       }
-      if (d < 6 && o.t > 0.35) {
+      if (d < 9 && o.t > 0.35) {
         if (o.tipo === "moneda") { this.stats.monedas++; sonar("moneda", 0.03); }
         else if (o.tipo === "botiquin") {
           if (j.vida >= JUGADOR.vida) continue;
           const antes = j.vida;
           j.vida = Math.min(JUGADOR.vida, j.vida + BOTIN.curaBotiquin);
-          this.flotantes.push({ x: j.x, y: j.y - 24, t: 0, txt: "+" + Math.round(j.vida - antes), color: "#7ee07e" });
+          this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: "+" + Math.round(j.vida - antes), color: "#7ee07e" });
           sonar("curar");
         }
         o.recogido = true;
@@ -395,30 +418,32 @@ export class Juego {
     for (const p of this.particulas) {
       p.vida -= dt;
       if (p.z > 0 || p.vz > 0) {
-        p.vz -= 260 * dt; p.z += p.vz * dt;
+        p.vz -= 390 * dt; p.z += p.vz * dt;
         p.x += p.vx * dt; p.y += p.vy * dt;
         if (p.z <= 0) {
           p.z = 0; p.vz = 0;
           if (p.mancha) {                              // la gota se queda pintada en el suelo
             const g = this.mapa.sueloCtx;
-            g.fillStyle = p.color; g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+            g.fillStyle = p.color; g.fillRect(Math.round(p.x), Math.round(p.y), p.tam, 1);
             p.vida = 0;
           }
         }
       }
     }
     this.particulas = this.particulas.filter((p) => p.vida > 0);
-    for (const f of this.fogonazos) f.t -= dt;
-    this.fogonazos = this.fogonazos.filter((f) => f.t > 0);
+    for (const f of this.fogonazos) f.t += dt;
+    const durFogonazo = duracion(S.fogonazo, "") || S.fogonazo.frames.reduce((s, f) => s + f.dur, 0);
+    this.fogonazos = this.fogonazos.filter((f) => f.t < durFogonazo);
     for (const f of this.flotantes) f.t += dt;
     this.flotantes = this.flotantes.filter((f) => f.t < 0.8);
-    this.sacudida = Math.max(0, this.sacudida - dt * 12);
+    this.sacudida = Math.max(0, this.sacudida - dt * 14);
   }
 
   // ------------------------------------------------------------------ oleadas
   oleadas(dt) {
     const o = this.oleada;
     o.cartel = Math.max(0, o.cartel - dt);
+    o.superada = Math.max(0, o.superada - dt);
     if (this.jugador.muerto) return;
     if (o.descanso > 0) {
       o.descanso -= dt;
@@ -427,6 +452,7 @@ export class Juego {
         o.porSalir = OLEADAS.zombisBase + OLEADAS.zombisPorOleada * (o.n - 1);
         o.t = 0.5;
         o.cartel = 2.2;
+        o.superada = 0;
         sonar("oleada");
       }
       return;
@@ -445,14 +471,13 @@ export class Juego {
       o.descanso = OLEADAS.descanso;
       o.superada = 2;
     }
-    if (o.superada) o.superada = Math.max(0, o.superada - dt);
   }
 
   // ------------------------------------------------------------------ cámara
   moverCamara(dt) {
     const j = this.jugador, c = this.camara, m = this.mapa;
     const ox = j.x - this.ancho / 2;
-    const oy = j.y - this.alto * 0.6;          // se ve más por delante (arriba), de donde vienen
+    const oy = j.y - this.alto * 0.6;           // se ve más por delante (arriba), de donde vienen
     const k = 1 - Math.exp(-dt * 6);
     c.x += (ox - c.x) * k; c.y += (oy - c.y) * k;
     c.x = Math.max(0, Math.min(m.ancho - this.ancho, c.x));
@@ -460,15 +485,15 @@ export class Juego {
     if (m.ancho < this.ancho) c.x = (m.ancho - this.ancho) / 2;
   }
 
-  enPantalla(x, y, margen = 20) {
+  enPantalla(x, y, margen = 30) {
     const c = this.camara;
-    return x > c.x - margen && x < c.x + this.ancho + margen && y > c.y - margen && y < c.y + this.alto + margen + 30;
+    return x > c.x - margen && x < c.x + this.ancho + margen && y > c.y - margen && y < c.y + this.alto + margen + 50;
   }
 
   // ------------------------------------------------------------------ dibujar
   dibujar(g) {
-    const c = this.camara;
-    g.fillStyle = "#1a1423";
+    const c = this.camara, j = this.jugador;
+    g.fillStyle = "#0e0d12";
     g.fillRect(0, 0, this.ancho, this.alto);
     const sx = this.sacudida > 0 ? Math.round(rnd(-1, 1) * this.sacudida) : 0;
     const sy = this.sacudida > 0 ? Math.round(rnd(-1, 1) * this.sacudida) : 0;
@@ -480,142 +505,202 @@ export class Juego {
     g.drawImage(this.mapa.suelo, cx, cy, this.ancho, this.alto, cx, cy, this.ancho, this.alto);
 
     // Cadáveres debajo de todo
-    for (const z of this.zombis) if (z.muerto) this.dibujarZombi(g, z);
+    for (const z of this.zombis) if (z.muerto && this.enPantalla(z.x, z.y)) this.dibujarZombi(g, z);
 
-    // Sombras
-    g.fillStyle = "rgba(20,14,30,0.35)";
-    const sombra = (x, y, rx) => { g.beginPath(); g.ellipse(Math.round(x), Math.round(y), rx, rx * 0.4, 0, 0, Math.PI * 2); g.fill(); };
-    const j = this.jugador;
-    if (!j.muerto) sombra(j.x, j.y - 0.5, 5);
-    for (const z of this.zombis) if (!z.muerto && this.enPantalla(z.x, z.y)) sombra(z.x, z.y - 0.5, 5);
+    // Sombras en el suelo
+    g.fillStyle = "rgba(8,7,14,0.38)";
+    const sombra = (x, y, rx, ry = rx * 0.38) => { g.beginPath(); g.ellipse(Math.round(x), Math.round(y), rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+    if (!j.muerto) sombra(j.x + 1, j.y, 8);
+    for (const z of this.zombis) if (!z.muerto && z.aparece <= 0 && this.enPantalla(z.x, z.y)) sombra(z.x + 1, z.y, 8);
     for (const o of this.mapa.objetos) {
-      if (!this.enPantalla(o.x, o.y, 40)) continue;
-      if (o.tipo === "arbol") sombra(o.x + 2, o.y - 1, 11);
-      else if (o.tipo === "barril" || o.tipo === "hoguera") sombra(o.x, o.y - 1, 6);
+      if (!this.enPantalla(o.x, o.y, 60)) continue;
+      if (o.tipo === "arbol") sombra(o.x + 5, o.y - 1, 17, 6);
+      else if (o.tipo === "coche") sombra(o.x + 3, o.y - 24, 21, 29);
+      else if (o.tipo === "barril" || o.tipo === "hoguera" || o.tipo === "neumaticos") sombra(o.x + 2, o.y - 1, 9);
+      else if (o.tipo === "caja" || o.tipo === "contenedor" || o.tipo === "barrera" || o.tipo === "sacos") sombra(o.x + 3, o.y - 2, S[o.tipo].w * 0.52, 6);
+      else if (o.tipo === "arbusto") sombra(o.x + 2, o.y - 1, 11, 4);
+      else if (o.tipo === "farola" || o.tipo === "cono") sombra(o.x + 1, o.y, 5, 2);
     }
+    for (const o of this.botin) if (this.enPantalla(o.x, o.y)) sombra(o.x, o.y, 4, 1.5);
 
     // Todo lo que está de pie, ordenado por la y de los pies
     const cosas = [];
-    for (const o of this.mapa.objetos) if (this.enPantalla(o.x, o.y, 40)) cosas.push({ y: o.y, f: () => this.dibujarObjeto(g, o) });
+    for (const o of this.mapa.objetos) if (this.enPantalla(o.x, o.y, 70)) cosas.push({ y: o.y, f: () => this.dibujarObjeto(g, o) });
     for (const z of this.zombis) if (!z.muerto && this.enPantalla(z.x, z.y)) cosas.push({ y: z.y, f: () => this.dibujarZombi(g, z) });
     for (const o of this.botin) cosas.push({ y: o.y - 0.5, f: () => this.dibujarBotin(g, o) });
     cosas.push({ y: j.y, f: () => this.dibujarJugador(g) });
     cosas.sort((a, b) => a.y - b.y);
     for (const k of cosas) k.f();
 
-    // Balas, fogonazos, partículas
+    // Balas (trazas), fogonazos, partículas
+    g.lineWidth = 1;
     for (const b of this.balas) {
-      g.strokeStyle = b.arma === "escopeta" ? "#ffd27a" : "#fff3b0";
-      g.lineWidth = 1;
+      const v = Math.hypot(b.vx, b.vy), l = 7;
+      g.strokeStyle = "#fff1a8";
       g.beginPath();
-      const v = Math.hypot(b.vx, b.vy), l = 4;
       g.moveTo(Math.round(b.x) + 0.5, Math.round(b.y) + 0.5);
       g.lineTo(Math.round(b.x - (b.vx / v) * l) + 0.5, Math.round(b.y - (b.vy / v) * l) + 0.5);
       g.stroke();
+      g.strokeStyle = "rgba(255,201,58,0.5)";
+      g.beginPath();
+      g.moveTo(Math.round(b.x - (b.vx / v) * l) + 0.5, Math.round(b.y - (b.vy / v) * l) + 0.5);
+      g.lineTo(Math.round(b.x - (b.vx / v) * l * 2) + 0.5, Math.round(b.y - (b.vy / v) * l * 2) + 0.5);
+      g.stroke();
     }
+    const fg = S.fogonazo, og = punto(fg, "origen", 0, { x: 1, y: 7 });
     for (const f of this.fogonazos) {
-      const spr = S.fogonazo;
+      let i = 0, t = f.t;
+      while (i < fg.frames.length - 1 && t >= fg.frames[i].dur) { t -= fg.frames[i].dur; i++; }
       g.save();
-      g.translate(Math.round(f.x), Math.round(f.y));
+      g.translate(Math.round(f.x) + 0.5, Math.round(f.y) + 0.5);
       g.rotate(f.ang);
-      dibujar(g, spr, f.t > 0.03 ? 0 : 1, -2, -3);
+      const fr = fg.frames[i];
+      g.drawImage(fg.img, fr.x, fr.y, fr.w, fr.h, -og.x - 0.5, -og.y - 0.5, fr.w, fr.h);
       g.restore();
     }
     for (const p of this.particulas) {
       g.globalAlpha = p.casquillo && p.vida < 0.5 ? p.vida * 2 : 1;
       g.fillStyle = p.color;
-      g.fillRect(Math.round(p.x), Math.round(p.y - p.z), p.casquillo ? 2 : 1, 1);
-    }
-    g.globalAlpha = 1;
-
-    // Barras de vida de zombis heridos y números de daño
-    for (const z of this.zombis) {
-      if (z.muerto || z.barra <= 0 || z.vida >= z.vidaMax) continue;
-      const w = 12, x = Math.round(z.x - w / 2), y = Math.round(z.y - 22);
-      g.fillStyle = "#1a1423"; g.fillRect(x - 1, y - 1, w + 2, 4);
-      g.fillStyle = "#6e1119"; g.fillRect(x, y, w, 2);
-      g.fillStyle = "#e0402f"; g.fillRect(x, y, Math.max(1, Math.round(w * z.vida / z.vidaMax)), 2);
-    }
-    for (const f of this.flotantes) {
-      g.globalAlpha = f.t > 0.55 ? 1 - (f.t - 0.55) / 0.25 : 1;
-      texto(g, f.txt, f.x, f.y - f.t * 18, f.color, "centro");
+      g.fillRect(Math.round(p.x), Math.round(p.y - p.z), p.casquillo ? 2 : (p.tam || 1), 1);
     }
     g.globalAlpha = 1;
     g.restore();
 
-    // Pantalla roja al recibir daño y viñeta cuando queda poca vida
+    // Oscuridad del atardecer: las farolas, el fuego y los disparos iluminan
+    this.dibujarLuces(g, cx, cy);
+
+    // Barras de vida de zombis heridos y números de daño (encima de la oscuridad, para que se lean)
+    g.save();
+    g.translate(-cx, -cy);
+    for (const z of this.zombis) {
+      if (z.muerto || z.barra <= 0 || z.vida >= z.vidaMax) continue;
+      const w = 16, x = Math.round(z.x - w / 2), y = Math.round(z.y - 44);
+      g.fillStyle = "#0e0d12"; g.fillRect(x - 1, y - 1, w + 2, 5);
+      g.fillStyle = "#520c12"; g.fillRect(x, y, w, 3);
+      g.fillStyle = "#e0403a"; g.fillRect(x, y, Math.max(1, Math.round(w * z.vida / z.vidaMax)), 3);
+    }
+    for (const f of this.flotantes) {
+      g.globalAlpha = f.t > 0.55 ? 1 - (f.t - 0.55) / 0.25 : 1;
+      texto(g, f.txt, f.x, f.y - f.t * 26, f.color, "centro");
+    }
+    g.globalAlpha = 1;
+    g.restore();
+
+    // Pantalla roja al recibir daño y borde rojo cuando queda poca vida
     if (j.golpe > 0) {
       g.fillStyle = `rgba(200,20,30,${j.golpe * 1.4})`;
       g.fillRect(0, 0, this.ancho, this.alto);
     }
     if (!j.muerto && j.vida <= 30) {
-      const a = 0.18 + 0.12 * Math.sin(this.t * 6);
-      g.strokeStyle = `rgba(176,32,44,${a})`;
-      g.lineWidth = 6;
+      const a = 0.2 + 0.14 * Math.sin(this.t * 6);
+      g.strokeStyle = `rgba(184,31,38,${a})`;
+      g.lineWidth = 10;
       g.strokeRect(0, 0, this.ancho, this.alto);
     }
     this.dibujarInterfaz(g);
   }
 
+  dibujarLuces(g, cx, cy) {
+    const osc = PANTALLA.oscuridad;
+    if (!osc) return;
+    const W = this.ancho, H = this.alto;
+    if (!this.capaLuz || this.capaLuz.width !== W || this.capaLuz.height !== H) {
+      this.capaLuz = document.createElement("canvas");
+      this.capaLuz.width = W; this.capaLuz.height = H;
+    }
+    const l = this.capaLuz.getContext("2d");
+    l.globalCompositeOperation = "source-over";
+    l.clearRect(0, 0, W, H);
+    l.fillStyle = `rgba(6,8,22,${osc})`;
+    l.fillRect(0, 0, W, H);
+    l.globalCompositeOperation = "destination-out";
+    const focos = [];
+    const foco = (x, y, r, fuerza, color) => {
+      x -= cx; y -= cy;
+      if (x < -r || y < -r || x > W + r || y > H + r) return;
+      const gr = l.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(0,0,0,${fuerza})`);
+      gr.addColorStop(0.55, `rgba(0,0,0,${fuerza * 0.55})`);
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      l.fillStyle = gr;
+      l.fillRect(x - r, y - r, 2 * r, 2 * r);
+      if (color) focos.push({ x, y, r, color });
+    };
+    for (const z of this.mapa.luces) {
+      if (z.fuego) foco(z.x, z.y, z.r * (1 + 0.07 * Math.sin(this.t * 11 + z.x)), 1, "255,150,60");
+      else foco(z.x, z.y, z.r, 0.95, "255,214,140");
+    }
+    const j = this.jugador;
+    foco(j.x, j.y - 16, 76, 0.5);
+    for (const f of this.fogonazos) foco(f.x, f.y, 64, 1, "255,200,110");
+    g.drawImage(this.capaLuz, 0, 0);
+    // Tinte cálido de las luces
+    g.globalCompositeOperation = "lighter";
+    for (const f of focos) {
+      const gr = g.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * 0.8);
+      gr.addColorStop(0, `rgba(${f.color},0.16)`);
+      gr.addColorStop(1, `rgba(${f.color},0)`);
+      g.fillStyle = gr;
+      g.fillRect(f.x - f.r, f.y - f.r, 2 * f.r, 2 * f.r);
+    }
+    g.globalCompositeOperation = "source-over";
+  }
+
   dibujarJugador(g) {
     const j = this.jugador, spr = S.jugador;
-    const x = j.x - 8, y = j.y - 20;
+    const i = this.cuadroJugador();
+    const pies = punto(spr, "pies", i, PIES);
     if (j.muerto) {
-      dibujar(g, spr, fotograma(spr, "morir", j.muerto, false), x, y, j.voltear);
+      dibujarAnclado(g, spr, i, j.x, j.y, pies, j.voltear);
       return;
     }
-    const i = fotograma(spr, j.andando ? "correr" : "quieto", j.anim);
-    const img = j.golpe > 0 ? (Math.floor(j.golpe * 30) % 2 ? spr.roja : spr.blanca) : spr.img;
-    dibujar(g, spr, i, x, y, j.voltear, img);
-    // Arma girada hacia donde apunta
-    const a = ARMAS[j.arma], arma = S[j.arma];
-    const { mano, izq } = this.geometriaArma();
+    const destello = j.golpe > 0 ? (Math.floor(j.golpe * 30) % 2 ? "roja" : "blanca") : "img";
+    dibujarAnclado(g, spr, i, j.x, j.y, pies, j.voltear, spr[destello]);
+    // Brazos con el arma, girados alrededor del hombro hacia donde apunta
+    const a = ARMAS[j.arma], br = S["brazos_" + j.arma];
+    const geo = this.geometriaArma();
+    let fi = primero(br, "apuntar");
+    if (j.recarga > 0) fi = fotogramaPorAvance(br, "recargar", 1 - j.recarga / a.recarga);
+    else if (j.tDisparo < duracion(br, "disparar")) fi = fotograma(br, "disparar", j.tDisparo, false);
+    const f = br.frames[fi];
     g.save();
-    g.translate(Math.round(mano.x), Math.round(mano.y + (i === 1 || i === 2 || i === 4 ? 1 : 0)));
+    g.translate(geo.hombro.x + 0.5, geo.hombro.y + 0.5);
     g.rotate(j.angulo);
-    if (izq) g.scale(1, -1);
-    // durante la recarga el arma baja un poco
-    if (j.recarga > 0) g.rotate(0.6 * Math.sin(Math.PI * (1 - j.recarga / a.recarga)));
-    dibujar(g, arma, 0, -a.mano.x - Math.round(j.retroceso), -a.mano.y);
+    if (geo.izq) g.scale(1, -1);
+    g.drawImage(br[destello], f.x, f.y, f.w, f.h, -geo.hb.x - 0.5, -geo.hb.y - 0.5, f.w, f.h);
     g.restore();
   }
 
   dibujarZombi(g, z) {
-    const spr = S[z.def.sprite];
-    const x = z.x - 8, y = z.y - 20;
+    const spr = z.spr;
     if (z.muerto) {
+      const i = fotograma(spr, "morir", z.muerto, false);
       if (z.muerto > 7) g.globalAlpha = Math.max(0, 1 - (z.muerto - 7) / 2);
-      dibujar(g, spr, fotograma(spr, "morir", z.muerto, false), x, y, z.voltear);
+      dibujarAnclado(g, spr, i, z.x, z.y, punto(spr, "pies", i, PIES), z.voltear);
       g.globalAlpha = 1;
       return;
     }
     let i;
     if (z.ataque > 0) i = fotograma(spr, "atacar", duracion(spr, "atacar") - z.ataque, false);
     else i = fotograma(spr, "andar", z.anim * (z.vel / z.def.velocidad));
+    const pies = punto(spr, "pies", i, PIES);
     if (z.aparece > 0) {                 // sale de la tierra
-      const k = 1 - z.aparece / 0.6, alto = Math.round(20 * k);
-      const f = spr.frames[i];
+      const k = 1 - z.aparece / 0.7, alto = Math.round(38 * k);
       g.save();
-      g.beginPath(); g.rect(Math.round(x) - 2, Math.round(z.y) - alto, 20, alto); g.clip();
-      dibujar(g, spr, i, x, y + (20 - alto) * 0.4, z.voltear);
+      g.beginPath(); g.rect(Math.round(z.x) - 22, Math.round(z.y) - alto, 44, alto); g.clip();
+      dibujarAnclado(g, spr, i, z.x, z.y + (38 - alto) * 0.45, pies, z.voltear);
       g.restore();
-      g.fillStyle = "#6b5033";
-      g.fillRect(Math.round(z.x) - 5, Math.round(z.y) - 1, 10, 2);
+      g.fillStyle = "#40301f"; g.fillRect(Math.round(z.x) - 8, Math.round(z.y) - 2, 16, 3);
+      g.fillStyle = "#594430"; g.fillRect(Math.round(z.x) - 6, Math.round(z.y) - 3, 5, 1); g.fillRect(Math.round(z.x) + 2, Math.round(z.y) - 3, 4, 1);
       return;
     }
-    dibujar(g, spr, i, x, y, z.voltear, z.golpe > 0 ? spr.blanca : spr.img);
+    dibujarAnclado(g, spr, i, z.x, z.y, pies, z.voltear, z.golpe > 0 ? spr.blanca : spr.img);
   }
 
   dibujarObjeto(g, o) {
     const spr = S[o.tipo];
-    const i = o.tipo === "hoguera" ? fotograma(spr, "arder", this.t + o.t0) : 0;
-    dibujar(g, spr, i, o.x - spr.w / 2, o.y - spr.h);
-    if (o.tipo === "hoguera") {          // resplandor
-      g.globalAlpha = 0.10 + 0.04 * Math.sin((this.t + o.t0) * 9);
-      g.fillStyle = "#ffb03a";
-      g.beginPath(); g.arc(o.x, o.y - 12, 22, 0, Math.PI * 2); g.fill();
-      g.globalAlpha = 1;
-    }
+    const i = o.tipo === "hoguera" ? fotograma(spr, "arder", this.t + o.t0) : o.f;
+    dibujar(g, spr, i, o.x - o.base.x, o.y - o.base.y);
   }
 
   dibujarBotin(g, o) {
@@ -635,87 +720,85 @@ export class Juego {
     if (this.estado === "inicio") return this.pantallaInicio(g);
 
     // Vida
-    const corazon = S.corazon;
-    dibujar(g, corazon, 0, 4, 4);
-    const bw = 56;
-    g.fillStyle = "#1a1423"; g.fillRect(15, 5, bw + 2, 7);
-    g.fillStyle = "#4a1018"; g.fillRect(16, 6, bw, 5);
+    dibujar(g, S.corazon, 0, 5, 5);
+    const bw = 84;
+    g.fillStyle = "#0e0d12"; g.fillRect(20, 5, bw + 2, 10);
+    g.fillStyle = "#3d0f12"; g.fillRect(21, 6, bw, 8);
     const pv = j.vida / JUGADOR.vida;
-    g.fillStyle = pv > 0.5 ? "#5fbf4a" : pv > 0.25 ? "#e6b13a" : "#e0402f";
-    g.fillRect(16, 6, Math.round(bw * pv), 5);
-    g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(16, 6, Math.round(bw * pv), 1);
-    texto(g, Math.ceil(j.vida), 16 + bw + 4, 6);
+    g.fillStyle = pv > 0.5 ? "#5f9c44" : pv > 0.25 ? "#d9a233" : "#e0403a";
+    g.fillRect(21, 6, Math.round(bw * pv), 8);
+    g.fillStyle = "rgba(255,255,255,0.3)"; g.fillRect(21, 6, Math.round(bw * pv), 2);
+    texto(g, Math.ceil(j.vida), 21 + bw + 5, 5);
 
-    // Oleada, bajas y monedas
+    // Bajas, oleada y monedas
     const o = this.oleada;
-    texto(g, "OLEADA " + Math.max(1, o.n), W / 2, 18, "#ffe066", "centro");
-    texto(g, "BAJAS " + this.stats.bajas, 4, 18, "#c9d3dd");
-    const mon = S.moneda;
+    texto(g, "BAJAS " + this.stats.bajas, 5, 21, "#d1cec0");
+    texto(g, "OLEADA " + Math.max(1, o.n), W / 2, 21, "#f2c84a", "centro");
     const txtM = String(this.stats.monedas);
-    const xm = W - 4 - anchoTexto(txtM);
-    dibujar(g, mon, 0, xm - 9, 17);
-    texto(g, txtM, W - 4, 18, "#ffe066", "der");
+    dibujar(g, S.moneda, 0, W - 6 - anchoTexto(txtM) - 13, 21);
+    texto(g, txtM, W - 5, 21, "#f2c84a", "der");
 
-    // Pausa y sonido
-    const bx = W - 13;
-    g.fillStyle = "#1a1423"; g.fillRect(bx, 3, 10, 10);
-    g.fillStyle = "#3b3450"; g.fillRect(bx + 1, 4, 8, 8);
-    g.fillStyle = "#ffffff"; g.fillRect(bx + 3, 6, 1, 4); g.fillRect(bx + 6, 6, 1, 4);
-    this.boton(bx - 3, 0, 16, 16, () => { sonar("boton"); this.pausar(); });
+    // Pausa
+    const bx = W - 21;
+    g.fillStyle = "#0e0d12"; g.fillRect(bx, 3, 16, 14);
+    g.fillStyle = "#34363d"; g.fillRect(bx + 1, 4, 14, 12);
+    g.fillStyle = "#d1cec0"; g.fillRect(bx + 5, 7, 2, 6); g.fillRect(bx + 9, 7, 2, 6);
+    this.boton(bx - 6, 0, 28, 22, () => { sonar("boton"); this.pausar(); });
 
     // Armas (abajo a la derecha). De momento se pueden elegir todas para probarlas.
-    const slotW = 26, slotH = 18, gap = 2;
-    const x0 = W - (slotW + gap) * ORDEN_ARMAS.length - 2, y0 = H - slotH - 6;
+    const slotW = 40, slotH = 24, gap = 3;
+    const x0 = W - (slotW + gap) * ORDEN_ARMAS.length - 2, y0 = H - slotH - 8;
     ORDEN_ARMAS.forEach((nombre, k) => {
       const x = x0 + k * (slotW + gap), sel = nombre === j.arma;
-      g.fillStyle = "#1a1423"; g.fillRect(x, y0, slotW, slotH);
-      g.fillStyle = sel ? "#4b6fa8" : "#2a2438"; g.fillRect(x + 1, y0 + 1, slotW - 2, slotH - 2);
-      if (sel) { g.fillStyle = "#ffe066"; g.fillRect(x + 1, y0 + 1, slotW - 2, 1); }
+      g.fillStyle = "#0e0d12"; g.fillRect(x, y0, slotW, slotH);
+      g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(x + 1, y0 + 1, slotW - 2, slotH - 2);
+      if (sel) { g.fillStyle = "#f2c84a"; g.fillRect(x + 1, y0 + 1, slotW - 2, 2); }
       const spr = S[nombre];
-      dibujar(g, spr, 0, x + Math.floor((slotW - spr.w) / 2), y0 + 3 + Math.floor((8 - spr.h) / 2));
-      texto(g, String(k + 1), x + 2, y0 + slotH - 7, sel ? "#ffe066" : "#7d7d88", "izq", 1, null);
-      this.boton(x, y0 - 4, slotW, slotH + 8, () => this.cambiarArma(nombre));
+      g.globalAlpha = sel ? 1 : 0.7;
+      dibujar(g, spr, 0, x + Math.floor((slotW - spr.w) / 2), y0 + 1 + Math.floor((slotH - spr.h) / 2));
+      g.globalAlpha = 1;
+      this.boton(x - 1, y0 - 6, slotW + 2, slotH + 14, () => this.cambiarArma(nombre));
     });
     // Munición y recarga encima de las armas
     const a = ARMAS[j.arma];
-    const yMun = y0 - 9;
+    const yMun = y0 - 14;
     if (j.recarga > 0) {
-      const w = 40, x = W - 4 - w;
-      g.fillStyle = "#1a1423"; g.fillRect(x - 1, yMun, w + 2, 6);
-      g.fillStyle = "#e6b13a"; g.fillRect(x, yMun + 1, Math.round(w * (1 - j.recarga / a.recarga)), 4);
-      texto(g, "RECARGANDO", x - 3, yMun, "#ffffff", "der");
+      const w = 56, x = W - 5 - w;
+      g.fillStyle = "#0e0d12"; g.fillRect(x - 1, yMun + 1, w + 2, 8);
+      g.fillStyle = "#d9a233"; g.fillRect(x, yMun + 2, Math.round(w * (1 - j.recarga / a.recarga)), 6);
+      texto(g, "RECARGANDO", x - 5, yMun, "#ffffff", "der");
     } else {
       const quedan = j.cargador[j.arma];
-      texto(g, a.nombre + "  " + quedan + "/" + a.cargador, W - 4, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");
+      texto(g, a.nombre + "  " + quedan + "/" + a.cargador, W - 5, yMun, quedan === 0 ? "#ff5a5a" : "#ffffff", "der");
     }
 
     // Joystick
-    const st = entrada.stick, js = S.joystick;
-    if (st && !j.muerto) {
-      g.globalAlpha = 0.55;
-      dibujar(g, js, 0, st.ox - 17, st.oy - 17);
+    const st = entrada.stick, js = S.joystick, mitad = Math.floor(js.w / 2);
+    const iBase = primero(js, "base"), iBoton = primero(js, "boton");
+    if (st && !j.muerto && this.estado === "jugando") {
+      g.globalAlpha = 0.5;
+      dibujar(g, js, iBase, st.ox - mitad, st.oy - mitad);
       g.globalAlpha = 0.9;
       let dx = st.x - st.ox, dy = st.y - st.oy;
       const l = Math.hypot(dx, dy);
       if (l > RADIO_STICK) { dx = dx / l * RADIO_STICK; dy = dy / l * RADIO_STICK; }
-      dibujar(g, js, 1, st.ox + dx - 17, st.oy + dy - 17);
+      dibujar(g, js, iBoton, st.ox + dx - mitad, st.oy + dy - mitad);
       g.globalAlpha = 1;
-    } else if (this.estado === "jugando" && this.t < 8) {
-      g.globalAlpha = 0.25 + 0.15 * Math.sin(this.t * 4);
-      dibujar(g, js, 0, 18, H - 52);
-      dibujar(g, js, 1, 18, H - 52);
+    } else if (this.estado === "jugando" && this.t < 8 && !j.muerto) {
+      g.globalAlpha = 0.3 + 0.15 * Math.sin(this.t * 4);
+      dibujar(g, js, iBase, 16, H - 78);
+      dibujar(g, js, iBoton, 16, H - 78);
       g.globalAlpha = 1;
-      texto(g, "ARRASTRA PARA MOVERTE", 35, H - 60, "#ffffff", "centro");
+      texto(g, "ARRASTRA PARA MOVERTE", 10, H - 92);
     }
 
     // Carteles
     if (o.cartel > 0) {
-      const a2 = Math.min(1, o.cartel * 2);
-      g.globalAlpha = a2;
-      texto(g, "OLEADA " + o.n, W / 2, H * 0.32, "#ffe066", "centro", 3);
+      g.globalAlpha = Math.min(1, o.cartel * 2);
+      texto(g, "OLEADA " + o.n, W / 2, H * 0.3, "#f2c84a", "centro", 3);
       g.globalAlpha = 1;
     } else if (o.superada > 0) {
-      texto(g, "OLEADA SUPERADA", W / 2, H * 0.32, "#7ee07e", "centro", 2);
+      texto(g, "OLEADA SUPERADA", W / 2, H * 0.3, "#7ee07e", "centro", 2);
     }
 
     if (this.estado === "pausa") this.pantallaPausa(g);
@@ -723,53 +806,59 @@ export class Juego {
   }
 
   velo(g, a = 0.65) {
-    g.fillStyle = `rgba(16,10,24,${a})`;
+    g.fillStyle = `rgba(10,9,16,${a})`;
     g.fillRect(0, 0, this.ancho, this.alto);
   }
 
-  botonGrande(g, txt, y, accion, color = "#4b6fa8") {
-    const w = anchoTexto(txt, 2) + 16, h = 20, x = Math.round(this.ancho / 2 - w / 2);
-    g.fillStyle = "#1a1423"; g.fillRect(x, y, w, h);
+  botonGrande(g, txt, y, accion, color = "#3b526b") {
+    const w = Math.max(150, anchoTexto(txt, 2) + 24), h = 30, x = Math.round(this.ancho / 2 - w / 2);
+    y = Math.round(y);
+    g.fillStyle = "#0e0d12"; g.fillRect(x, y, w, h);
     g.fillStyle = color; g.fillRect(x + 1, y + 1, w - 2, h - 2);
-    g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(x + 1, y + 1, w - 2, 1);
+    g.fillStyle = "rgba(255,255,255,0.22)"; g.fillRect(x + 1, y + 1, w - 2, 2);
+    g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(x + 1, y + h - 4, w - 2, 3);
     texto(g, txt, this.ancho / 2, y + 5, "#ffffff", "centro", 2);
     this.boton(x, y, w, h, accion);
   }
 
   pantallaInicio(g) {
     const W = this.ancho, H = this.alto;
-    this.velo(g, 0.55);
-    texto(g, "HORDA", W / 2, H * 0.2, "#e0402f", "centro", 5);
-    texto(g, "PIXEL", W / 2, H * 0.2 + 30, "#ffe066", "centro", 3);
-    // Personaje y zombis de adorno
+    this.velo(g, 0.5);
+    const tit = S.titulo;
+    dibujar(g, tit, 0, Math.round(W / 2 - tit.w / 2), Math.round(H * 0.12));
+    // El superviviente y un zombi, a doble tamaño
     const t = performance.now() / 1000;
-    const spr = S.jugador, z = S.zombi;
-    g.save(); g.translate(W / 2 - 16, H * 0.47); g.scale(2, 2);
-    dibujar(g, spr, fotograma(spr, "quieto", t), 0, 0);
+    const jug = S.jugador, br = S.brazos_pistola, z = S.zombi;
+    const ij = fotograma(jug, "quieto", t), h = punto(jug, "hombro", ij, HOMBRO), hb = punto(br, "hombro", 0, { x: 8, y: 10 });
+    g.save();
+    g.translate(Math.round(W / 2 - 78), Math.round(H * 0.38)); g.scale(2, 2);
+    dibujar(g, jug, ij, 0, 0);
+    dibujar(g, br, primero(br, "apuntar"), h.x - hb.x, h.y - hb.y);
     g.restore();
-    g.save(); g.translate(W / 2 + 22, H * 0.47); g.scale(2, 2);
+    g.save();
+    g.translate(Math.round(W / 2 + 2), Math.round(H * 0.38)); g.scale(2, 2);
     dibujar(g, z, fotograma(z, "andar", t), 0, 0, true);
     g.restore();
-    if (Math.floor(t * 2) % 2 === 0) texto(g, "TOCA PARA EMPEZAR", W / 2, H * 0.68, "#ffffff", "centro");
-    texto(g, "ARRASTRA EL DEDO PARA MOVERTE", W / 2, H * 0.78, "#c9d3dd", "centro");
-    texto(g, "DISPARAS SOLO AL ZOMBI MÁS CERCANO", W / 2, H * 0.78 + 9, "#c9d3dd", "centro");
-    texto(g, "PROTOTIPO 0.1", W / 2, H - 10, "#7d7d88", "centro");
+    if (Math.floor(t * 2) % 2 === 0) texto(g, "TOCA PARA EMPEZAR", W / 2, H * 0.62, "#ffffff", "centro", 2);
+    texto(g, "ARRASTRA EL DEDO PARA MOVERTE", W / 2, H * 0.74, "#d1cec0", "centro");
+    texto(g, "DISPARAS SOLO AL ZOMBI MÁS CERCANO", W / 2, H * 0.74 + 14, "#d1cec0", "centro");
+    texto(g, "PROTOTIPO 0.2", W / 2, H - 16, "#85837a", "centro");
     this.boton(0, 0, W, H, () => this.empezar());
   }
 
   pantallaPausa(g) {
     const W = this.ancho, H = this.alto;
     this.velo(g);
-    texto(g, "PAUSA", W / 2, H * 0.25, "#ffffff", "centro", 3);
-    this.botonGrande(g, "SEGUIR", H * 0.42, () => { sonar("boton"); this.pausar(); });
-    this.botonGrande(g, silenciado() ? "SONIDO: NO" : "SONIDO: SÍ", H * 0.42 + 28, () => { silenciar(!silenciado()); sonar("boton"); }, "#3b3450");
-    this.botonGrande(g, "REINICIAR", H * 0.42 + 56, () => this.empezar(), "#8a3a3a");
+    texto(g, "PAUSA", W / 2, H * 0.22, "#ffffff", "centro", 3);
+    this.botonGrande(g, "SEGUIR", H * 0.38, () => { sonar("boton"); this.pausar(); });
+    this.botonGrande(g, silenciado() ? "SONIDO: NO" : "SONIDO: SÍ", H * 0.38 + 40, () => { silenciar(!silenciado()); sonar("boton"); }, "#34363d");
+    this.botonGrande(g, "REINICIAR", H * 0.38 + 80, () => this.empezar(), "#872a26");
   }
 
   pantallaFin(g) {
     const W = this.ancho, H = this.alto, s = this.stats;
     this.velo(g, 0.72);
-    texto(g, "HAS MUERTO", W / 2, H * 0.16, "#e0402f", "centro", 3);
+    texto(g, "HAS MUERTO", W / 2, H * 0.14, "#e0403a", "centro", 3);
     const filas = [
       ["OLEADA", this.oleada.n],
       ["BAJAS", s.bajas],
@@ -780,10 +869,10 @@ export class Juego {
       ["DAÑO RECIBIDO", Math.round(s.recibido)],
     ];
     filas.forEach(([k, v], i) => {
-      const y = H * 0.3 + i * 11;
-      texto(g, k, W / 2 - 60, y, "#c9d3dd");
-      texto(g, v, W / 2 + 60, y, "#ffe066", "der");
+      const y = H * 0.28 + i * 15;
+      texto(g, k, W / 2 - 84, y, "#d1cec0");
+      texto(g, v, W / 2 + 84, y, "#f2c84a", "der");
     });
-    this.botonGrande(g, "OTRA VEZ", H * 0.3 + filas.length * 11 + 14, () => this.empezar(), "#4b8a3a");
+    this.botonGrande(g, "OTRA VEZ", H * 0.28 + filas.length * 15 + 16, () => this.empezar(), "#4a6a34");
   }
 }

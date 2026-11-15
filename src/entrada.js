@@ -9,7 +9,7 @@ export const entrada = {
   tocado: false,                // algún toque o clic desde el último fotograma
 };
 
-export const RADIO_STICK = 16;  // px de juego que hay que arrastrar para ir a tope
+export const RADIO_STICK = 22;  // px de juego que hay que arrastrar para ir a tope
 
 export function iniciarEntrada(canvas, aJuego) {
   const punto = (e) => aJuego(e.clientX, e.clientY);

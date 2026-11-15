@@ -1,92 +1,164 @@
 { "frames": [
    {
     "filename": "jugador 0.aseprite",
-    "frame": { "x": 0, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 0, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 500
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 220
    },
    {
     "filename": "jugador 1.aseprite",
-    "frame": { "x": 16, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 40, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 500
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 220
    },
    {
     "filename": "jugador 2.aseprite",
-    "frame": { "x": 32, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 80, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 100
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 220
    },
    {
     "filename": "jugador 3.aseprite",
-    "frame": { "x": 48, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 120, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 100
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 220
    },
    {
     "filename": "jugador 4.aseprite",
-    "frame": { "x": 64, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 160, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 100
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
    },
    {
     "filename": "jugador 5.aseprite",
-    "frame": { "x": 80, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 200, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 100
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
    },
    {
     "filename": "jugador 6.aseprite",
-    "frame": { "x": 96, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 240, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 120
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
    },
    {
     "filename": "jugador 7.aseprite",
-    "frame": { "x": 112, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 280, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 160
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
    },
    {
     "filename": "jugador 8.aseprite",
-    "frame": { "x": 128, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 320, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
-    "duration": 200
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
    },
    {
     "filename": "jugador 9.aseprite",
-    "frame": { "x": 144, "y": 0, "w": 16, "h": 20 },
+    "frame": { "x": 360, "y": 0, "w": 40, "h": 40 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 20 },
-    "sourceSize": { "w": 16, "h": 20 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
+   },
+   {
+    "filename": "jugador 10.aseprite",
+    "frame": { "x": 400, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
+   },
+   {
+    "filename": "jugador 11.aseprite",
+    "frame": { "x": 440, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 75
+   },
+   {
+    "filename": "jugador 12.aseprite",
+    "frame": { "x": 480, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 90
+   },
+   {
+    "filename": "jugador 13.aseprite",
+    "frame": { "x": 520, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 90
+   },
+   {
+    "filename": "jugador 14.aseprite",
+    "frame": { "x": 560, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 110
+   },
+   {
+    "filename": "jugador 15.aseprite",
+    "frame": { "x": 600, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 130
+   },
+   {
+    "filename": "jugador 16.aseprite",
+    "frame": { "x": 640, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
+    "duration": 160
+   },
+   {
+    "filename": "jugador 17.aseprite",
+    "frame": { "x": 680, "y": 0, "w": 40, "h": 40 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 40 },
+    "sourceSize": { "w": 40, "h": 40 },
     "duration": 1000
    }
  ],
@@ -95,12 +167,33 @@
   "version": "1.3.18.6-x64",
   "image": "jugador.png",
   "format": "RGBA8888",
-  "size": { "w": 160, "h": 20 },
+  "size": { "w": 720, "h": 40 },
   "scale": "1",
   "frameTags": [
-   { "name": "quieto", "from": 0, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "correr", "from": 2, "to": 5, "direction": "forward", "color": "#000000ff" },
-   { "name": "morir", "from": 6, "to": 9, "direction": "forward", "color": "#000000ff" }
+   { "name": "quieto", "from": 0, "to": 3, "direction": "forward", "color": "#000000ff" },
+   { "name": "correr", "from": 4, "to": 11, "direction": "forward", "color": "#000000ff" },
+   { "name": "morir", "from": 12, "to": 17, "direction": "forward", "color": "#000000ff" }
+  ],
+  "slices": [
+   { "name": "pies", "keys": [{ "frame": 0, "bounds": {"x": 20, "y": 38, "w": 1, "h": 1 } }] },
+   { "name": "hombro#0", "keys": [{ "frame": 0, "bounds": {"x": 20, "y": 13, "w": 1, "h": 1 } }] },
+   { "name": "hombro#1", "keys": [{ "frame": 0, "bounds": {"x": 20, "y": 12, "w": 1, "h": 1 } }] },
+   { "name": "hombro#2", "keys": [{ "frame": 0, "bounds": {"x": 20, "y": 12, "w": 1, "h": 1 } }] },
+   { "name": "hombro#3", "keys": [{ "frame": 0, "bounds": {"x": 20, "y": 13, "w": 1, "h": 1 } }] },
+   { "name": "hombro#4", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 14, "w": 1, "h": 1 } }] },
+   { "name": "hombro#5", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 15, "w": 1, "h": 1 } }] },
+   { "name": "hombro#6", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 14, "w": 1, "h": 1 } }] },
+   { "name": "hombro#7", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 13, "w": 1, "h": 1 } }] },
+   { "name": "hombro#8", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 14, "w": 1, "h": 1 } }] },
+   { "name": "hombro#9", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 15, "w": 1, "h": 1 } }] },
+   { "name": "hombro#10", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 14, "w": 1, "h": 1 } }] },
+   { "name": "hombro#11", "keys": [{ "frame": 0, "bounds": {"x": 21, "y": 13, "w": 1, "h": 1 } }] },
+   { "name": "hombro#12", "keys": [{ "frame": 0, "bounds": {"x": 19, "y": 13, "w": 1, "h": 1 } }] },
+   { "name": "hombro#13", "keys": [{ "frame": 0, "bounds": {"x": 16, "y": 18, "w": 1, "h": 1 } }] },
+   { "name": "hombro#14", "keys": [{ "frame": 0, "bounds": {"x": 13, "y": 25, "w": 1, "h": 1 } }] },
+   { "name": "hombro#15", "keys": [{ "frame": 0, "bounds": {"x": 12, "y": 33, "w": 1, "h": 1 } }] },
+   { "name": "hombro#16", "keys": [{ "frame": 0, "bounds": {"x": 13, "y": 32, "w": 1, "h": 1 } }] },
+   { "name": "hombro#17", "keys": [{ "frame": 0, "bounds": {"x": 13, "y": 32, "w": 1, "h": 1 } }] }
   ]
  }
 }
