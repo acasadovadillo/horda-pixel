@@ -7,7 +7,7 @@ const NOMBRES = [
   "suelo", "manchas", "detalles",
   "coche", "barril", "caja", "sacos", "hoguera", "cono", "neumaticos", "contenedor", "barrera",
   "arbol", "arbusto", "farola",
-  "joystick", "corazon", "moneda", "botiquin", "letra", "titulo",
+  "joystick", "corazon", "moneda", "botiquin", "letra", "titulo", "banderas",
 ];
 
 export const S = {};

@@ -867,22 +867,28 @@ export class Juego {
     texto(g, t("ayudaDisparo"), W / 2, H * 0.77 + 13, "#d1cec0", "centro");
     texto(g, t("prototipo") + " 0.4", W / 2, H - 16, "#85837a", "centro");
     this.boton(0, 0, W, H, () => this.empezar());
-    this.selectorIdioma(g, W - 6, 6);
+    this.selectorIdioma(g, W - 6 - this.anchoSelector(), 6);
   }
 
-  // Dos botones ES | EN arriba a la derecha; el idioma activo resaltado.
-  selectorIdioma(g, xDer, y) {
-    const w = 30, h = 18, gap = 2;
-    texto(g, idioma() === "es" ? "IDIOMA" : "LANGUAGE", xDer - 2 * w - gap - 6, y + 4, "#d1cec0", "der");
-    [["es", "ES"], ["en", "EN"]].forEach(([cod, et], i) => {
-      const x = xDer - (2 - i) * w - (1 - i) * gap, sel = idioma() === cod;
-      g.fillStyle = "#0e0d12"; g.fillRect(x, y, w, h);
-      g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(x + 1, y + 1, w - 2, h - 2);
-      if (sel) { g.fillStyle = "#f2c84a"; g.fillRect(x + 1, y + 1, w - 2, 2); }
-      texto(g, et, x + w / 2, y + 5, sel ? "#ffffff" : "#85837a", "centro");
-      this.boton(x - 2, y - 4, w + 4, h + 8, () => { if (!sel) { cambiarIdioma(cod); sonar("boton"); } });
+  // Dos banderas para elegir idioma (España = español, EE. UU. = inglés); la activa, resaltada.
+  // (x, y) es la esquina superior izquierda; devuelve el ancho total.
+  selectorIdioma(g, x, y, k = 1) {
+    const b = S.banderas, w = b.w * k + 6, h = b.h * k + 6, gap = 4 * k;
+    [["es", 0], ["en", 1]].forEach(([cod, f], i) => {
+      const bx = x + i * (w + gap), sel = idioma() === cod;
+      g.fillStyle = sel ? "#f2c84a" : "#0e0d12"; g.fillRect(bx, y, w, h);
+      g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(bx + 1, y + 1, w - 2, h - 2);
+      g.globalAlpha = sel ? 1 : 0.45;
+      g.save(); g.translate(bx + 3, y + 3); g.scale(k, k);
+      dibujar(g, b, f, 0, 0);
+      g.restore();
+      g.globalAlpha = 1;
+      this.boton(bx - 2, y - 4, w + 4, h + 8, () => { if (!sel) { cambiarIdioma(cod); sonar("boton"); } });
     });
+    return 2 * w + gap;
   }
+
+  anchoSelector(k = 1) { return 2 * (S.banderas.w * k + 6) + 4 * k; }
 
   pantallaPausa(g) {
     const W = this.uiW, H = this.uiH;
@@ -890,8 +896,8 @@ export class Juego {
     texto(g, t("pausa"), W / 2, H * 0.1, "#ffffff", "centro", 3);
     this.botonGrande(g, t("seguir"), H * 0.24, () => { sonar("boton"); this.pausar(); });
     this.botonGrande(g, t(silenciado() ? "sonidoNo" : "sonidoSi"), H * 0.24 + 38, () => { silenciar(!silenciado()); sonar("boton"); }, "#34363d");
-    this.botonGrande(g, t("idioma"), H * 0.24 + 76, () => { cambiarIdioma(); sonar("boton"); }, "#34363d");
-    this.botonGrande(g, t("reiniciar"), H * 0.24 + 114, () => this.empezar(), "#872a26");
+    this.selectorIdioma(g, Math.round(W / 2 - this.anchoSelector(2) / 2), Math.round(H * 0.24 + 72), 2);
+    this.botonGrande(g, t("reiniciar"), H * 0.24 + 122, () => this.empezar(), "#872a26");
   }
 
   pantallaFin(g) {
