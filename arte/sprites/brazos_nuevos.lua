@@ -132,8 +132,7 @@ local function bate(img, T)
   caja(img, T, 28, 9, 38, 9, MA[5]); caja(img, T, 28, 10, 38, 10, MA[4]); caja(img, T, 28, 11, 38, 11, MA[3]); caja(img, T, 28, 12, 38, 12, MA[2])
   caja(img, T, 32, 8, 38, 8, MA[4]); caja(img, T, 32, 13, 38, 13, MA[1])
   pix(img, T, 39, 10, MA[3]); pix(img, T, 39, 11, MA[2])
-  -- clavos y sangre
-  for _, c in ipairs({ { 33, 7 }, { 36, 7 }, { 35, 14 } }) do pix(img, T, c[1], c[2], ME[6]) end
+  -- sangre
   for _, c in ipairs({ { 35, 11 }, { 36, 12 }, { 37, 11 }, { 38, 12 }, { 34, 12 } }) do pix(img, T, c[1], c[2], SA[3]) end
   pix(img, T, 37, 12, SA[2]); pix(img, T, 29, 10, MA[2])
 end

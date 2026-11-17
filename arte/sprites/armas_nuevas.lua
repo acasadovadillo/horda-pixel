@@ -62,7 +62,7 @@ local function huso(m, x0, x1, yc, g)
 end
 
 ---------------------------------------------------------------- bate
--- Bate de madera en diagonal suave, con el puño envuelto en cinta y clavos en la punta.
+-- Bate de madera con el puño envuelto en cinta y sangre seca en la punta.
 local function bate(img)
   local yc = 9
   pieza(img, function(m)
@@ -84,11 +84,6 @@ local function bate(img)
   pieza(img, function(m) huso(m, 3, 12, yc, function() return 1.7 end) end, CINTA, function(m)
     for _, x in ipairs({ 5, 8, 11 }) do L.px(m, x, 9, CINTA[1]); L.px(m, x, 8, CINTA[1]) end
   end)
-  -- clavos que asoman
-  for _, c in ipairs({ { 24, 4 }, { 28, 4 }, { 32, 4 }, { 26, 14 }, { 30, 14 } }) do
-    local d = c[2] < 9 and 1 or -1
-    L.px(img, c[1], c[2], ME[6]); L.px(img, c[1], c[2] + d, ME[4])
-  end
 end
 
 ---------------------------------------------------------------- machete
