@@ -1698,9 +1698,9 @@ export class Juego {
     let blanca = false;
     if (o.descanso > 0) blanca = Math.floor(this.t * 3.4) % 2 === 0;
     else if (o.cartel > 1.1) blanca = Math.floor(o.cartel * 7) % 2 === 0;
-    // A doble tamaño: tiene que leerse de un vistazo, como una marca pintada en la pared.
+    // A tamaño real (antes iba al doble; el usuario lo prefiere más pequeño).
     g.save();
-    g.translate(x, y); g.scale(2, 2);
+    g.translate(x, y);
     if (n <= 9) {
       const p = S.palotes;
       dibujar(g, p, n - 1, 0, 0, false, blanca ? p.blanca : p.img);
