@@ -1,4 +1,4 @@
--- RESTOS de Horda Pixel (40x24, 8 fotogramas, punto base { 20, 20 }): lo que queda en el suelo cuando se
+-- RESTOS de Horda Pixel (40x24, 9 fotogramas, punto base { 20, 20 }): lo que queda en el suelo cuando se
 -- rompe algo del mapa. El juego los pinta en el suelo para siempre (no chocan).
 --   0 astillas y tablas rotas (caja, barrera)    1 chatarra (barril, contenedor)
 --   2 tocón con astillas y hojas (árbol)          3 ramas y hojas sueltas (arbusto)
@@ -92,4 +92,15 @@ local function sacos(img)
   perfilar(img)
 end
 
-L.construir("restos", W, H, { astillas, chatarra, tocon, ramas, conoAplastado, neumaticos, farolaCaida, sacos }, {}, 0.1, { base = { 20, 20 } })
+-- 8 ladrillos rotos y polvo de mortero (paredes de ladrillo)
+local LAD = { L.hex("3a1f18"), L.hex("5c3024"), L.hex("7d4432"), L.hex("9a5a42") }
+local function ladrillos(img)
+  local r = L.azar(12)
+  for k = 1, 26 do L.px(img, math.floor(5 + r() * 30), math.floor(12 + r() * 10), L.col("hormigon", 1 + (k % 3))) end
+  for _, b in ipairs({ { 8, 14 }, { 15, 17 }, { 22, 13 }, { 27, 18 }, { 13, 11 }, { 30, 14 } }) do
+    L.rect(img, b[1], b[2], 5, 3, LAD[3]); L.rect(img, b[1], b[2], 5, 1, LAD[4]); L.rect(img, b[1], b[2] + 2, 5, 1, LAD[2])
+  end
+  perfilar(img)
+end
+
+L.construir("restos", W, H, { astillas, chatarra, tocon, ramas, conoAplastado, neumaticos, farolaCaida, sacos, ladrillos }, {}, 0.1, { base = { 20, 20 } })

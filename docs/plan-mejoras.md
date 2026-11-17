@@ -4,6 +4,8 @@ Tres mejoras pedidas el 2026-11-17. Orden recomendado: 1, 2, 3. Las cuentas van 
 
 ## 1. Todo destruible (estilo Streets of Rogue)
 
+Hecho el 2026-11-17 (versiones .3 y .4): objetos, botín, fuego, coches que estallan y edificios con paredes y puertas que se rompen. Falta la hierba seca que arde.
+
 Objetivo: casi todo lo que hay en el mapa se puede romper con balas, explosiones, fuego o el cuerpo a cuerpo.
 
 - **Objetos con vida**: coches, cajas, barriles, contenedores, neumáticos, farolas, conos, árboles, arbustos y vallas.

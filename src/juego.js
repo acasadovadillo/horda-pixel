@@ -10,6 +10,7 @@ import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo,
 import { pantallaTienda } from "./tienda.js";
 import { crearDefensas, moverDefensas, deslumbrado, ponerTrampa, cadena, balaABarril, finDeRonda, cosasDefensas, dibujarTrampasSuelo, lucesDefensas } from "./defensas.js";
 import { leerPerfil, apuntarPartida, TRAJES } from "./perfil.js";
+import { crearEdificios, moverEdificios, chocarPuertas, paredCerca, golpearPared, dibujarPared } from "./edificios.js";
 import { OBJETOS, prepararDestruibles, balaAObjeto, golpeArea, golpeCuerpo, prender, moverObjetos, dibujarDestruible, barrasObjetos, lucesObjetos } from "./destruir.js";
 import { crearMascota, moverMascota, cosasMascota } from "./mascotas.js";
 import { pantallaPersonaje, pantallaHistorial } from "./menus.js";
@@ -70,6 +71,7 @@ export class Juego {
     const s = this.mapa.salida;
     this.base = crearBase(this.mapa);
     crearDefensas(this.base, this.mapa);
+    crearEdificios(this.mapa);
     prepararDestruibles(this.mapa);
     this.trampas = [];            // minas, barriles y cepos puestos en el suelo
     this.supervivientes = [];
@@ -264,6 +266,7 @@ export class Juego {
     this.moverLanzados(dt);
     moverDefensas(this, dt);
     moverObjetos(this, dt);
+    moverEdificios(this, dt);
     moverSupervivientes(this, dt);
     moverMascota(this, dt);
     this.moverBotin(dt);
@@ -716,17 +719,19 @@ export class Juego {
         const golpeEn = total - z.spr.frames[primero(z.spr, tg)].dur;
         if (antes > golpeEn && z.ataque <= golpeEn) {
           if (z.objetivo) this.golpearMuro(z.objetivo, z.def.dano);
+          else if (z.pared) golpearPared(this, z.pared, z.def.dano);
           else if (d <= z.def.alcance + 9 && vivo) {
             if (p === j) this.herirJugador(z.def.dano, z);
             else herirSuperviviente(this, p, z.def.dano, z);
           }
         }
         if (z.objetivo) z.ang = z.objetivo.y > z.y ? Math.PI / 2 : -Math.PI / 2;
+        else if (z.pared) z.ang = Math.atan2(z.pared.caja.y + z.pared.caja.h / 2 - z.y, z.pared.x - z.x);
         if (z.ataque <= 0) z.espera = Math.max(0, z.def.cadencia - total);
         continue;
       }
       z.espera = Math.max(0, z.espera - dt);
-      z.objetivo = null;
+      z.objetivo = null; z.pared = null;
       if (d <= z.def.alcance && vivo) {
         if (z.espera <= 0) { z.ataque = duracion(z.spr, orientar(z.spr, "atacar", z.ang).tag); sonar("zarpazo", 0.05); }
         continue;
@@ -791,9 +796,13 @@ export class Juego {
       if (jd < rj && jd > 1e-4 && !j.muerto) { z.x = j.x + (jx / jd) * rj; z.y = j.y + (jy / jd) * rj; }
       resolverChoques(m, z, z.def.radio);
       chocarMuro(this.base, z, z.def.radio, false);
+      chocarPuertas(this, z, z.def.radio);
       const avance = Math.hypot(z.x - ox, z.y - oy);
       if (avance < z.vel * dt * 0.3) {
         z.atasco += dt;
+        // Atascado contra una pared o una puerta: la golpea hasta romperla
+        const pa = z.atasco > 0.2 && z.espera <= 0 ? paredCerca(this, z, z.def.radio) : null;
+        if (pa) { z.pared = pa; z.ataque = duracion(z.spr, orientar(z.spr, "atacar", z.ang).tag); z.atasco = 0; continue; }
         if (z.atasco > 0.3 && z.desvio <= 0) { z.desvio = rnd(0.6, 1.2); z.lado = Math.random() < 0.5 ? 1 : -1; z.atasco = 0; }
       } else z.atasco = Math.max(0, z.atasco - dt);
     }
@@ -1476,7 +1485,8 @@ export class Juego {
 
   dibujarObjeto(g, o) {
     const spr = S[o.tipo];
-    const i = o.tipo === "hoguera" ? fotograma(spr, "arder", this.t + o.t0) : o.f;
+    const i = o.pared ? 0 : o.tipo === "hoguera" ? fotograma(spr, "arder", this.t + o.t0) : o.f;
+    if (o.pared) return dibujarPared(this, g, o);
     if (OBJETOS[o.tipo]) return dibujarDestruible(this, g, o, dibujar, i);
     dibujar(g, spr, i, o.x - o.base.x, o.y - o.base.y);
   }

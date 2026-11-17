@@ -23,6 +23,10 @@ export const OBJETOS = {
   arbusto: { vida: 20, restos: 3, arde: true, trozos: ["#1e3320", "#2e4a2a", "#426438"], sonido: "hojas" },
   arbol: { vida: 130, restos: 2, alto: true, arde: true, trozos: ["#2e4a2a", "#426438", "#4a3626"], sonido: "madera" },
   coche: { vida: 240, alto: true, arde: true, botin: "coche", trozos: ["#323840", "#6e7885", "#b5d0db"], sonido: "metal" },
+  // Edificios (edificios.js): cada tramo de pared y la puerta
+  pared_ladrillo: { vida: 130, restos: 8, alto: true, trozos: ["#5c3024", "#7d4432", "#7b7b7c"], sonido: "impacto" },
+  pared_madera: { vida: 70, restos: 0, alto: true, arde: true, trozos: MADERA, sonido: "madera" },
+  puerta: { vida: 45, restos: 0, alto: true, arde: true, trozos: MADERA, sonido: "madera" },
 };
 
 export function prepararDestruibles(mapa) {
@@ -31,7 +35,7 @@ export function prepararDestruibles(mapa) {
     if (d) { o.vida = o.vidaMax = d.vida; o.golpe = 0; o.barra = 0; o.arde = 0; o.chispa = 0; }
   }
   // Copias para el destello al golpear, el oscurecido al estar dañado y el coche calcinado
-  for (const n of Object.keys(OBJETOS)) {
+  for (const n of [...Object.keys(OBJETOS), "pared", "pared_v"]) {
     const s = S[n];
     if (s && !s.blanca) s.blanca = teñida(s.img, "#ffffff");
     if (s && !s.sombra) s.sombra = teñida(s.img, "#0e0d12");
@@ -128,7 +132,7 @@ export function balaAObjeto(J, b) {
     const gx = b.px + sx * (k / pasos), gy = b.py + sy * (k / pasos) + alto;
     for (const o of J.mapa.objetos) {
       const d = OBJETOS[o.tipo];
-      if (!d || !d.alto || !o.caja || o.roto) continue;
+      if (!d || !d.alto || !o.caja || o.roto || o.tipo === "puerta") continue;   // tus balas cruzan la puerta
       const c = o.caja;
       if (gx >= c.x - 1 && gx <= c.x + c.w + 1 && gy >= c.y - 2 && gy <= c.y + c.h + 2) {
         if (o.quemado) return { o, x: gx, y: gy };                 // el coche calcinado para las balas
@@ -155,7 +159,7 @@ export function golpeCuerpo(J, a) {
   const j = J.jugador, medio = (a.arco / 2) * Math.PI / 180;
   let alguno = false;
   for (const o of [...J.mapa.objetos]) {
-    if (!OBJETOS[o.tipo] || o.roto || o.quemado) continue;
+    if (!OBJETOS[o.tipo] || o.roto || o.quemado || o.tipo === "puerta") continue;      // tu puerta no la rompes tú
     const cy = o.caja ? o.caja.y + o.caja.h / 2 : o.y;
     const dx = o.x - j.x, dy = cy - j.y, d = Math.hypot(dx, dy);
     if (d > a.alcance + 12) continue;

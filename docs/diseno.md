@@ -52,6 +52,7 @@ Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en 
   - Coches, cajas, barriles, contenedores, neumáticos, conos, vallas, sacos, farolas, árboles y arbustos tienen vida. Se rompen con el cuerpo a cuerpo, explosiones y fuego; las balas paran en lo alto (coches, contenedores, barriles, troncos y farolas) cuando no hay un zombi delante.
   - Al romperse dejan restos pintados en el suelo (sprite `restos`) y dejan de chocar. Cajas, contenedores y coches sueltan monedas, cajas de munición (media carga del arma que llevas), granadas o botiquines.
   - La madera, las plantas, los neumáticos y los coches arden hasta consumirse y prenden lo que tienen al lado y a los zombis que se acercan. El coche malherido arde, estalla y queda calcinado (sigue estorbando y para las balas).
+  - **Edificios abandonados** (`src/edificios.js`): cuatro casas (dos de ladrillo y dos de madera) a los lados de la carretera, con suelo de tablas y cajas y un barril dentro. Cada tramo de pared es un objeto destruible (ladrillo 130 de vida, madera 70, que arde) y deja un hueco al romperse. La puerta se abre a tu paso (y al de los supervivientes); tus balas y tus golpes no la rompen, los zombis, las explosiones y el fuego sí. Un zombi atascado contra una pared o una puerta la golpea hasta romperla. La pared de delante se ve a través cuando estás detrás.
 
 ## Números (src/config.js)
 Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.

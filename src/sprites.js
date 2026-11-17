@@ -39,7 +39,7 @@ const OPCIONALES = ["muro", "porton", "alambre", "tienda", "iconos_tienda",
   "brazos_bate", "brazos_machete", "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas",
   "proyectiles", "fuego", "explosion",
   "torreta", "foco", "mina", "barril_explosivo", "cepo", "enfermeria", "taller", "armeria",
-  "perro", "gato", "cuervo"];
+  "perro", "gato", "cuervo", "restos", "pared", "pared_v", "suelo_casa"];
 const BRAZOS = ["brazos_pistola", "brazos_subfusil", "brazos_escopeta", "brazos_bate", "brazos_machete",
   "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas"];
 

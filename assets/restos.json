@@ -70,6 +70,15 @@
     "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 24 },
     "sourceSize": { "w": 40, "h": 24 },
     "duration": 100
+   },
+   {
+    "filename": "restos 8.aseprite",
+    "frame": { "x": 320, "y": 0, "w": 40, "h": 24 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 24 },
+    "sourceSize": { "w": 40, "h": 24 },
+    "duration": 100
    }
  ],
  "meta": {
@@ -77,7 +86,7 @@
   "version": "1.3.18.6-x64",
   "image": "restos.png",
   "format": "RGBA8888",
-  "size": { "w": 320, "h": 24 },
+  "size": { "w": 360, "h": 24 },
   "scale": "1",
   "frameTags": [
   ],
