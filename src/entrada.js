@@ -1,5 +1,5 @@
 // Controles: joystick táctil fijo abajo a la izquierda y teclado para probar en el ordenador.
-// Cualquier toque en la mitad izquierda de la pantalla (fuera de los botones) mueve el joystick.
+// Solo mueve al personaje un toque que empieza encima del joystick (luego el dedo puede salirse de él).
 // En disparo manual, la mitad derecha maneja el joystick de apuntar (abajo a la derecha).
 
 export const entrada = {
@@ -9,7 +9,7 @@ export const entrada = {
   manual: false,                // disparo manual: hay joystick de apuntar
   apunta: null,                 // { id, x, y } mientras se toca el joystick de apuntar
   baseApunta: { x: 550, y: 250 },
-  zonaStick: 0.5,               // fracción izquierda de la pantalla que controla el joystick
+  zonaStick: 0.5,               // fracción izquierda de la pantalla (el joystick de apuntar usa la derecha)
   ancho: 600,                   // ancho de la pantalla en píxeles de juego
   botones: [],                  // zonas tocables que dibuja la interfaz cada fotograma
   teclas: new Set(),
@@ -18,6 +18,7 @@ export const entrada = {
 };
 
 export const RADIO_STICK = 20;  // px de juego que hay que arrastrar para ir a tope
+const RADIO_TOQUE = 30;         // px de juego desde el centro del joystick en los que un toque lo coge (el dibujo mide 52)
 
 export function iniciarEntrada(canvas, aJuego) {
   const punto = (e) => aJuego(e.clientX, e.clientY);
@@ -30,10 +31,11 @@ export function iniciarEntrada(canvas, aJuego) {
       const b = entrada.botones[i];
       if (p.x >= b.x && p.x < b.x + b.w && p.y >= b.y && p.y < b.y + b.h) { b.accion(); return; }
     }
-    if (!entrada.stick && p.x < entrada.ancho * entrada.zonaStick) {
+    const sobreStick = Math.hypot(p.x - entrada.base.x, p.y - entrada.base.y) <= RADIO_TOQUE;
+    if (!entrada.stick && sobreStick) {
       entrada.stick = { id: e.pointerId, ox: entrada.base.x, oy: entrada.base.y, x: p.x, y: p.y };
       try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* puntero simulado */ }
-    } else if (entrada.manual && !entrada.apunta && p.x >= entrada.ancho * entrada.zonaStick) {
+    } else if (!sobreStick && entrada.manual && !entrada.apunta && p.x >= entrada.ancho * entrada.zonaStick) {
       entrada.apunta = { id: e.pointerId, x: p.x, y: p.y };
       try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* puntero simulado */ }
     }

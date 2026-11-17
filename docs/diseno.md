@@ -3,7 +3,7 @@
 Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en vertical, pide girarlo. El nombre es provisional.
 
 ## Cómo se juega
-- **Moverse:** joystick fijo abajo a la izquierda; vale tocar en cualquier punto de la mitad izquierda de la pantalla y arrastrar. En el ordenador: WASD o flechas.
+- **Moverse:** joystick fijo abajo a la izquierda; solo responde si el toque empieza encima del joystick (luego el dedo puede salirse al arrastrar). En el ordenador: WASD o flechas.
 - **Disparar:** automático. El personaje apunta y dispara al zombi vivo más cercano que esté a su alcance.
 - **Recargar:** automático cuando se vacía el cargador, o tras 1,2 s sin zombis cerca. En el ordenador también con R.
 - **Armas:** los tres botones de abajo a la derecha (1, 2 y 3 en el teclado). Ahora están todas desbloqueadas para probarlas; más adelante se comprarán.
