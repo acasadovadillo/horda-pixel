@@ -23,6 +23,8 @@ Objetivo: casi todo lo que hay en el mapa se puede romper con balas, explosiones
 
 ## 2. Todos los comercios en la base
 
+Hecho el 2026-11-17 (versión .5): cinco casetas junto al muro con su vendedor; cada una abre solo su parte de la tienda. El mecánico vende también reparar y reforzar el muro.
+
 Objetivo: en vez de un único puesto con pestañas, varios comercios dentro de la base, cada uno con su caseta y su vendedor.
 
 - **Armero**: armas y mejoras de armas.

@@ -5,6 +5,7 @@ const TEXTOS = {
   es: {
     bajas: "BAJAS", oleada: "RONDA", oleadaSuperada: "RONDA SUPERADA",
     listo: "LISTO", tienda: "TIENDA", ayudaDescanso: "COMPRA LO QUE NECESITES Y PULSA LISTO", vuelveBase: "VUELVE A LA BASE PARA COMPRAR", salBase: "SAL DE LA BASE PARA EMPEZAR LA RONDA",
+    armero: "ARMERO", intendente: "INTENDENTE", medico: "MÉDICO", mecanico: "MECÁNICO", constructor: "CONSTRUCTOR", acercateComercio: "ACÉRCATE A UN MOSTRADOR PARA COMPRAR",
     seCompra: "SE COMPRA EN LA TIENDA", sinBalas: "SIN BALAS", a: "A",
     tab_armas: "ARMAS", tab_municion: "MUNICIÓN", tab_curacion: "CURACIÓN", tab_mejoras: "MEJORAS", tab_defensas: "DEFENSAS",
     tuya: "TUYA", lleno: "LLENO", maximo: "MÁXIMO", sinArma: "SIN ARMA", intacto: "INTACTO", puesto: "PUESTO",
@@ -59,6 +60,7 @@ const TEXTOS = {
   en: {
     bajas: "KILLS", oleada: "ROUND", oleadaSuperada: "ROUND CLEARED",
     listo: "READY", tienda: "SHOP", ayudaDescanso: "BUY WHAT YOU NEED AND TAP READY", vuelveBase: "GO BACK TO THE BASE TO SHOP", salBase: "LEAVE THE BASE TO START THE ROUND",
+    armero: "GUNSMITH", intendente: "QUARTERMASTER", medico: "MEDIC", mecanico: "MECHANIC", constructor: "BUILDER", acercateComercio: "WALK UP TO A COUNTER TO SHOP",
     seCompra: "BUY IT AT THE SHOP", sinBalas: "OUT OF AMMO", a: "TO",
     tab_armas: "WEAPONS", tab_municion: "AMMO", tab_curacion: "HEALING", tab_mejoras: "UPGRADES", tab_defensas: "DEFENSE",
     tuya: "OWNED", lleno: "FULL", maximo: "MAX", sinArma: "NO WEAPON", intacto: "INTACT", puesto: "BUILT",

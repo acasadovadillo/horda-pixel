@@ -6,7 +6,8 @@ import { entrada, leerMovimiento, leerApuntado, RADIO_STICK } from "./entrada.js
 import { sonar, sonarRecarga, sonarCartucho, sonarCorredera, cancelarRecarga, desbloquear, silenciar, silenciado } from "./audio.js";
 import { pantallaCompletaHorizontal } from "./pantalla.js";
 import { crearRagdoll, moverRagdoll, dibujarRagdoll, asentado } from "./ragdoll.js";
-import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo, dibujarAlambre, dibujarTienda } from "./base.js";
+import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo, dibujarAlambre } from "./base.js";
+import { crearComercios, comercioCerca, cosasComercios, marcasComercios } from "./comercios.js";
 import { pantallaTienda } from "./tienda.js";
 import { crearDefensas, moverDefensas, deslumbrado, ponerTrampa, cadena, balaABarril, finDeRonda, cosasDefensas, dibujarTrampasSuelo, lucesDefensas } from "./defensas.js";
 import { leerPerfil, apuntarPartida, TRAJES } from "./perfil.js";
@@ -71,6 +72,7 @@ export class Juego {
     const s = this.mapa.salida;
     this.base = crearBase(this.mapa);
     crearDefensas(this.base, this.mapa);
+    crearComercios(this.base, this.mapa);
     crearEdificios(this.mapa);
     prepararDestruibles(this.mapa);
     this.trampas = [];            // minas, barriles y cepos puestos en el suelo
@@ -119,7 +121,7 @@ export class Juego {
     if (c === "KeyC") ponerTrampa(this, "cepo");
     if (c === "KeyR") this.empezarRecarga();
     if (c === "KeyH") this.usarBotiquin();
-    if (c === "KeyT" && this.puedeComprar()) this.abrirTienda();
+    if (c === "KeyT") this.abrirTienda(this.puedeComprar());
     if (c === "KeyL" && this.oleada.esperando && this.estado === "jugando") this.listo();
     if (c === "KeyP" || c === "Escape") this.pausar();
     if ((c === "Enter" || c === "Space") && (this.estado === "inicio" || this.estado === "fin")) this.empezar();
@@ -160,11 +162,20 @@ export class Juego {
     };
   }
 
-  // Se compra dentro de la base, entre rondas o en mitad de una (el juego queda parado mientras compras).
+  // Se compra delante del mostrador de un comercio de la base, entre rondas o en mitad de una
+  // (el juego queda parado mientras compras). Devuelve el comercio o null.
   puedeComprar() {
-    return this.estado === "jugando" && !this.jugador.muerto && dentro(this.base, this.jugador.y);
+    return this.estado === "jugando" ? comercioCerca(this) : null;
   }
-  abrirTienda() { this.estado = "tienda"; this.pestana ??= "armas"; sonar("boton"); }
+  // Abre la tienda con solo las pestañas de ese comercio (se recuerda la última de cada uno).
+  abrirTienda(c) {
+    if (!c) return;
+    this.comercio = c;
+    this.pestanas ??= {};
+    this.pestana = this.pestanas[c.id] || c.pestanas[0];
+    this.estado = "tienda";
+    sonar("boton");
+  }
   cerrarTienda() { this.estado = "jugando"; sonar("boton"); }
 
   // LISTO: empieza la siguiente ronda.
@@ -1178,7 +1189,7 @@ export class Juego {
     const cosas = [];
     for (const o of this.mapa.objetos) if (this.enPantalla(o.x, o.y, 70)) cosas.push({ y: o.y, f: () => this.dibujarObjeto(g, o) });
     for (const tr of this.base.tramos) if (this.enPantalla(tr.x, tr.y, 40)) cosas.push({ y: tr.y, f: () => dibujarTramo(g, this.base, tr) });
-    if (this.enPantalla(this.base.tienda.x, this.base.tienda.y, 60)) cosas.push({ y: this.base.tienda.y, f: () => dibujarTienda(g, this.base, this.t) });
+    cosasComercios(this, g, cosas);
     for (const z of this.zombis) if (!z.muerto && this.enPantalla(z.x, z.y)) cosas.push({ y: z.y, f: () => this.dibujarZombi(g, z) });
     for (const o of this.botin) cosas.push({ y: o.y - 0.5, f: () => this.dibujarBotin(g, o) });
     for (const o of this.lanzados) cosas.push({ y: o.y, f: () => this.dibujarLanzado(g, o) });
@@ -1260,6 +1271,7 @@ export class Juego {
     g.translate(-cx, -cy);
     this.dibujarOjos(g);
     marcasSupervivientes(this, g);
+    marcasComercios(this, g);
     barrasObjetos(this, g);
     // Vida de los tramos del muro que están recibiendo golpes
     for (const tr of this.base.tramos) {
@@ -1721,22 +1733,30 @@ export class Juego {
       texto(g, t("oleadaSuperada"), W / 2, H * 0.46, "#7ee07e", "centro", 2);
     }
 
-    // Descanso entre rondas: LISTO para seguir y TIENDA si estás dentro de la base
+    // Descanso entre rondas: LISTO para seguir y el botón del comercio que tienes delante
     if (this.estado === "jugando" && o.esperando && !j.muerto) {
-      const dentroBase = dentro(this.base, j.y);
-      const bw2 = Math.max(anchoTexto(t("listo"), 2), anchoTexto(t("tienda"), 2)) + 24, gap2 = 8;
-      const ancho = dentroBase ? bw2 * 2 + gap2 : bw2, xb = Math.round(W / 2 - ancho / 2), yb = 36;
-      if (dentroBase) this.botonGrande(g, t("tienda"), yb, () => this.abrirTienda(), "#8a6a24", xb, bw2);
-      this.botonGrande(g, t("listo"), yb, () => this.listo(), "#4a6a34", dentroBase ? xb + bw2 + gap2 : xb, bw2);
-      texto(g, t(dentroBase ? "ayudaDescanso" : "vuelveBase"), W / 2, yb + 36, "#d1cec0", "centro");
+      const dentroBase = dentro(this.base, j.y), com = comercioCerca(this);
+      const bw2 = Math.max(anchoTexto(t("listo"), 2), com ? anchoTexto(t(com.id), 2) : 0) + 24, gap2 = 8;
+      const ancho = com ? bw2 * 2 + gap2 : bw2, xb = Math.round(W / 2 - ancho / 2), yb = 36;
+      if (com) this.botonGrande(g, t(com.id), yb, () => this.abrirTienda(com), "#8a6a24", xb, bw2);
+      this.botonGrande(g, t("listo"), yb, () => this.listo(), "#4a6a34", com ? xb + bw2 + gap2 : xb, bw2);
+      texto(g, t(!dentroBase ? "vuelveBase" : com ? "ayudaDescanso" : "acercateComercio"), W / 2, yb + 36, "#d1cec0", "centro");
     } else if (this.estado === "jugando" && !j.muerto && o.n === 0 && !o.salio) {
       const aw = anchoTexto(t("salBase")) + 16;
       g.fillStyle = "rgba(14,13,18,0.75)"; g.fillRect(Math.round(W / 2 - aw / 2), 36, aw, 17);
       texto(g, t("salBase"), W / 2, 41, "#f2c84a", "centro");
+      const com = comercioCerca(this);
+      if (com) {
+        const bw2 = anchoTexto(t(com.id), 2) + 24;
+        this.botonGrande(g, t(com.id), 36, () => this.abrirTienda(com), "#8a6a24", W - bw2 - 8, bw2);
+      }
     } else if (this.estado === "jugando" && !j.muerto && o.n > 0) {
-      // En mitad de la ronda: TIENDA dentro de la base; fuera, si no te quedan balas, aviso de volver.
-      const bw2 = anchoTexto(t("tienda"), 2) + 24, yb = 36;
-      if (dentro(this.base, j.y)) this.botonGrande(g, t("tienda"), yb, () => this.abrirTienda(), "#8a6a24", W - bw2 - 8, bw2);   // a un lado: no tapa el portón
+      // En mitad de la ronda: el botón del comercio que tienes delante; fuera, si no te quedan balas, aviso de volver.
+      const com = comercioCerca(this), yb = 36;
+      if (com) {
+        const bw2 = anchoTexto(t(com.id), 2) + 24;
+        this.botonGrande(g, t(com.id), yb, () => this.abrirTienda(com), "#8a6a24", W - bw2 - 8, bw2);   // a un lado: no tapa el portón
+      } else if (dentro(this.base, j.y)) { /* dentro, lejos de los mostradores: nada */ }
       else if (!ORDEN_ARMAS.some((n) => this.conBalas(n)) && Math.floor(this.t * 2) % 2 === 0)
         texto(g, t("vuelveBase"), W / 2, yb + 6, "#ff5a5a", "centro");
     }

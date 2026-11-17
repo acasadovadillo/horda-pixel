@@ -14,7 +14,7 @@ const DEF_TORRETA = { dano: TORRETAS.dano, empuje: TORRETAS.empuje, critico: TOR
 
 // Dónde va cada zona dentro de la base (relativo al centro del mapa y a la línea del muro) y su caja de choque.
 const SITIO = {
-  taller: { dx: -250, dy: 110, caja: { w: 54, h: 14 }, luz: { dy: -24, r: 60 } },
+  taller: { dx: -250, dy: 122, caja: { w: 54, h: 14 }, luz: { dy: -24, r: 60 } },
   enfermeria: { dx: 130, dy: 120, caja: { w: 52, h: 14 }, luz: { dy: -26, r: 60 } },
   armeria: { dx: 268, dy: 108, caja: { w: 50, h: 14 }, luz: { dy: -24, r: 56 } },
 };

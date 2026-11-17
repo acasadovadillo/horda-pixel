@@ -1,5 +1,5 @@
 // La base fortificada, abajo del todo: un muro de lado a lado del mapa con un portón en la carretera,
-// alambre de espino delante (si se compra) y la tienda dentro.
+// alambre de espino delante (si se compra). Los comercios de dentro los pone comercios.js.
 // Los zombis no pueden cruzar el muro: lo golpean hasta romper un tramo y entran por el hueco.
 // El jugador sí pasa por el portón (se abre a su paso); los zombis no.
 import { S, punto, dibujar } from "./sprites.js";
@@ -13,11 +13,7 @@ export function crearBase(mapa) {
   for (let k = -8; k <= 8; k++) {
     tramos.push({ x: mapa.centro + k * BASE.tramo, y, porton: k === 0, vida: BASE.vida[0], vidaMax: BASE.vida[0], barra: 0 });
   }
-  const tienda = { x: mapa.centro - 110, y: y + 112 };
-  // La tienda es un mueble fijo: choca como las demás cosas del mapa
-  mapa.cajas.push({ x: tienda.x - 28, y: tienda.y - 16, w: 56, h: 16 });
-  mapa.luces.push({ x: tienda.x + 14, y: tienda.y - 20, r: 70 });
-  return { y, tramos, nivel: 0, alambre: false, tienda, abierto: 0 };
+  return { y, tramos, nivel: 0, alambre: false, abierto: 0 };
 }
 
 export const cajaTramo = (t) => ({ x: t.x - BASE.tramo / 2, y: t.y - GRUESO, w: BASE.tramo, h: GRUESO });
@@ -103,16 +99,4 @@ export function dibujarAlambre(g, base) {
       for (let k = 0; k < 48; k += 6) g.fillRect(Math.round(t.x - 24 + k), Math.round(t.y - 44 + (k % 12 ? 1 : 0)), 4, 1);
     }
   }
-}
-
-export function dibujarTienda(g, base, t) {
-  const spr = S.tienda, b0 = base.tienda;
-  if (spr) {
-    const f = Math.floor(t * 6) % 2, b = punto(spr, "base", f, { x: 32, y: 45 });
-    dibujar(g, spr, f, b0.x - b.x, b0.y - b.y);
-    return;
-  }
-  g.fillStyle = "#3f2917"; g.fillRect(b0.x - 28, b0.y - 20, 56, 20);
-  g.fillStyle = "#5c3d22"; g.fillRect(b0.x - 30, b0.y - 24, 60, 5);
-  g.fillStyle = "#4a3f2a"; g.fillRect(b0.x - 30, b0.y - 44, 60, 6);
 }

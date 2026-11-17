@@ -1,5 +1,5 @@
-// Tienda de la base: se abre entre rondas, dentro de la base. El juego queda parado mientras compras.
-// Pestañas: armas, munición, curación, mejoras y defensas. Todo se paga con las monedas de los zombis.
+// Tienda de la base: se abre delante del mostrador de un comercio (comercios.js) y enseña solo sus pestañas.
+// El juego queda parado mientras compras. Todo se paga con las monedas de los zombis.
 import { S, texto, anchoTexto, dibujar } from "./sprites.js";
 import { ARMAS, ARMAS_FUEGO, CUERPO, LANZABLES, JUGADOR, BASE, MUNICION, MEJORAS, PRECIOS, TORRETAS, FOCOS, TRAMPAS, ZONAS } from "./config.js";
 import { precioTorreta, comprarTorreta, faltaMunicionTorretas, rellenarTorretas, construirZona } from "./defensas.js";
@@ -7,7 +7,6 @@ import { faltaMuro, repararMuro, reforzarMuro } from "./base.js";
 import { sonar } from "./audio.js";
 import { t } from "./idioma.js";
 
-const PESTANAS = ["armas", "municion", "equipo", "curacion", "mejoras", "defensas", "base"];
 const ARMAS_ORDEN = ARMAS_FUEGO;
 const EN_VENTA = ["machete", "subfusil", "escopeta", "francotirador", "ballesta", "lanzallamas"];
 
@@ -157,22 +156,23 @@ export function pantallaTienda(juego, g) {
   const W = juego.uiW, H = juego.uiH;
   juego.velo(g, 0.82);
   // Cabecera: título, monedas y cerrar
-  texto(g, t("tienda"), 8, 6, "#f2c84a", "izq", 2);
+  const com = juego.comercio, PESTANAS = com.pestanas;
+  texto(g, t(com.id), 8, 6, "#f2c84a", "izq", 2);
   const txtM = String(juego.monedas);
   const xM = W - 54;
   texto(g, txtM, xM - 6, 10, "#f2c84a", "der");
   moneda(g, xM - 6 - anchoTexto(txtM) - 13, 10);
   juego.botonGrande(g, "X", 3, () => juego.cerrarTienda(), "#872a26", W - 44, 40);
 
-  // Pestañas
-  const pw = Math.floor((W - 16) / PESTANAS.length), py = 34, ph = 20;
-  PESTANAS.forEach((p, i) => {
+  // Pestañas (solo si el comercio tiene más de una)
+  const pw = Math.min(150, Math.floor((W - 16) / PESTANAS.length)), py = 34, ph = PESTANAS.length > 1 ? 20 : -6;
+  if (PESTANAS.length > 1) PESTANAS.forEach((p, i) => {
     const x = 8 + i * pw, sel = juego.pestana === p;
     g.fillStyle = "#0e0d12"; g.fillRect(x, py, pw - 3, ph);
     g.fillStyle = sel ? "#3b526b" : "#26252e"; g.fillRect(x + 1, py + 1, pw - 5, ph - 2);
     if (sel) { g.fillStyle = "#f2c84a"; g.fillRect(x + 1, py + 1, pw - 5, 2); }
     texto(g, t("tab_" + p), x + (pw - 3) / 2, py + 6, sel ? "#ffffff" : "#a8a59a", "centro");
-    juego.boton(x, py - 4, pw - 3, ph + 6, () => { juego.pestana = p; sonar("boton"); });
+    juego.boton(x, py - 4, pw - 3, ph + 6, () => { juego.pestana = juego.pestanas[com.id] = p; sonar("boton"); });
   });
 
   let y0 = py + ph + 8;

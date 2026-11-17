@@ -34,7 +34,7 @@ export function teñida(img, color) {
 }
 
 // Sprites que pueden no estar todavía (el juego dibuja algo sencillo en su lugar).
-const OPCIONALES = ["muro", "porton", "alambre", "tienda", "iconos_tienda",
+const OPCIONALES = ["muro", "porton", "alambre", "comercios", "iconos_tienda",
   "bate", "machete", "francotirador", "ballesta", "lanzallamas",
   "brazos_bate", "brazos_machete", "brazos_francotirador", "brazos_ballesta", "brazos_lanzallamas",
   "proyectiles", "fuego", "explosion",
