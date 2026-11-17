@@ -48,6 +48,11 @@ Juego de zombis para móvil en horizontal, pixel art. Si se sujeta el móvil en 
     - Trajes: militar (ronda 5), motero (500 bajas en total), médico (3 rescatados), leñador (100 bajas cuerpo a cuerpo), pirómano (60 bajas con fuego o explosiones), veterano (ronda 10). Son el dibujo del jugador con otra ropa.
     - Mascotas: perro (ronda 3; muerde y frena), gato (200 bajas; recoge monedas y virotes), cuervo (10 partidas; pica a los zombis y trae monedas). No mueren.
 
+- **Todo destruible** (2026-11-17, `src/destruir.js`; vida de cada cosa en `OBJETOS`):
+  - Coches, cajas, barriles, contenedores, neumáticos, conos, vallas, sacos, farolas, árboles y arbustos tienen vida. Se rompen con el cuerpo a cuerpo, explosiones y fuego; las balas paran en lo alto (coches, contenedores, barriles, troncos y farolas) cuando no hay un zombi delante.
+  - Al romperse dejan restos pintados en el suelo (sprite `restos`) y dejan de chocar. Cajas, contenedores y coches sueltan monedas, cajas de munición (media carga del arma que llevas), granadas o botiquines.
+  - La madera, las plantas, los neumáticos y los coches arden hasta consumirse y prenden lo que tienen al lado y a los zombis que se acercan. El coche malherido arde, estalla y queda calcinado (sigue estorbando y para las balas).
+
 ## Números (src/config.js)
 Escala: 20 px = 1 m; una persona mide 35 px y una loseta 24 px.
 

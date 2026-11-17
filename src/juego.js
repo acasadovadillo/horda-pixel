@@ -10,6 +10,7 @@ import { crearBase, chocarMuro, tramoTocado, huecoCercano, dentro, dibujarTramo,
 import { pantallaTienda } from "./tienda.js";
 import { crearDefensas, moverDefensas, deslumbrado, ponerTrampa, cadena, balaABarril, finDeRonda, cosasDefensas, dibujarTrampasSuelo, lucesDefensas } from "./defensas.js";
 import { leerPerfil, apuntarPartida, TRAJES } from "./perfil.js";
+import { OBJETOS, prepararDestruibles, balaAObjeto, golpeArea, golpeCuerpo, prender, moverObjetos, dibujarDestruible, barrasObjetos, lucesObjetos } from "./destruir.js";
 import { crearMascota, moverMascota, cosasMascota } from "./mascotas.js";
 import { pantallaPersonaje, pantallaHistorial } from "./menus.js";
 import { quizaSuperviviente, moverSupervivientes, herirSuperviviente, cosasSupervivientes, marcasSupervivientes, flechaSuperviviente } from "./supervivientes.js";
@@ -69,6 +70,7 @@ export class Juego {
     const s = this.mapa.salida;
     this.base = crearBase(this.mapa);
     crearDefensas(this.base, this.mapa);
+    prepararDestruibles(this.mapa);
     this.trampas = [];            // minas, barriles y cepos puestos en el suelo
     this.supervivientes = [];
     this.jugador = {
@@ -188,6 +190,13 @@ export class Juego {
     return j.armas[n] && (j.cargador[n] > 0 || j.reserva[n] > 0);
   }
 
+  // Arma de fuego que tienes y no está llena de munición (primero la que llevas en la mano).
+  armaSinLlenar() {
+    const j = this.jugador;
+    const ok = (n) => j.armas[n] && !ARMAS[n].cuerpo && j.reserva[n] < MUNICION[n].maximo;
+    return ok(j.arma) ? j.arma : ORDEN_ARMAS.find(ok) || null;
+  }
+
   // Casillas de la barra: el cuerpo a cuerpo y las armas de fuego que ya tienes.
   casillasVisibles() { return CASILLAS.filter((c) => c === "cuerpo" || this.jugador.armas[c]); }
 
@@ -254,6 +263,7 @@ export class Juego {
     this.moverLlamas(dt);
     this.moverLanzados(dt);
     moverDefensas(this, dt);
+    moverObjetos(this, dt);
     moverSupervivientes(this, dt);
     moverMascota(this, dt);
     this.moverBotin(dt);
@@ -476,6 +486,7 @@ export class Juego {
       alguno = true;
       if (z.vida <= 0) { this.stats.bajasCuerpo++; this.matarZombi(z, { x: ux, y: uy }, a.empuje / 7 + (critico ? 1 : 0.4), critico); }
     }
+    if (golpeCuerpo(this, a)) alguno = true;
     if (alguno) {
       this.stats.disparos += 0;   // el barrido ya contó como un disparo
       sonar(a.sonido, 0.03);
@@ -538,6 +549,7 @@ export class Juego {
     // Charcos de fuego: prenden a los zombis que los pisan
     for (const f of this.fuegos) {
       f.t += dt;
+      if (Math.floor(f.t * 2) !== Math.floor((f.t - dt) * 2)) prender(this, f.x, f.y, f.r);
       for (const z of this.zombis) {
         if (z.muerto || z.aparece > 0) continue;
         if ((z.x - f.x) ** 2 + ((z.y - f.y) / 0.6) ** 2 < f.r * f.r) {
@@ -580,6 +592,7 @@ export class Juego {
     }
     this.marcaQuemada(x, y, 16);
     cadena(this, x, y, L.radio + 6);
+    golpeArea(this, x, y, L.radio, L.dano * 0.8, true);
   }
 
   romperMolotov(x, y, sinCristal = false) {
@@ -620,6 +633,7 @@ export class Juego {
       f.x += f.vx * dt; f.y += f.vy * dt;
       f.vx *= 1 - 1.6 * dt; f.vy = f.vy * (1 - 1.6 * dt) - 14 * dt;
       const r = 5 + 9 * (f.t / f.vida);
+      if (f.t > f.vida * 0.4 && !f.prendio) { f.prendio = true; prender(this, f.x, f.y + PECHO, r + 4); }
       for (const z of this.zombis) {
         if (z.muerto || z.aparece > 0.2 || f.tocados.has(z)) continue;
         if ((z.x - f.x) ** 2 + (z.y - PECHO - f.y) ** 2 < r * r) {
@@ -887,6 +901,16 @@ export class Juego {
         const qx = b.px + sx * t, qy = b.py + sy * t;
         if ((qx - cx) ** 2 + (qy - cy) ** 2 < RADIO_CUERPO * RADIO_CUERPO && t < mt) { mejor = z; mt = t; mq = { x: qx, y: qy }; }
       }
+      if (!mejor) {
+        // Sin zombi delante: ¿da a un coche, un contenedor, un árbol...?
+        const ob = balaAObjeto(this, b);
+        if (ob) {
+          b.vida = 0;
+          for (let i = 0; i < 3; i++) this.particulas.push({ x: b.x, y: b.y + 2, z: 2, vx: rnd(-40, 40), vy: rnd(-20, 20), vz: rnd(20, 60), color: "#ffe9a0", vida: 0.25 });
+          if (b.flecha) this.soltarFlecha(ob.x, ob.y, b.vx);
+          continue;
+        }
+      }
       if (mejor) {
         this.impacto(mejor, b, mq.x, mq.y);
         (b.tocados ??= new Set()).add(mejor);
@@ -965,6 +989,8 @@ export class Juego {
       // Con la vida llena el botiquín se queda en el suelo: ni se atrae ni se recoge.
       if (o.tipo === "botiquin" && j.vida >= JUGADOR.vida) continue;
       if (o.tipo === "flecha" && (!j.armas.ballesta || j.reserva.ballesta >= MUNICION.ballesta.maximo)) continue;
+      if (o.tipo === "municion" && !this.armaSinLlenar()) continue;
+      if (o.tipo === "granada" && j.lanzables.granada >= LANZABLES.granada.max) continue;
       const dx = j.x - o.x, dy = j.y - 8 - o.y, d = Math.hypot(dx, dy) || 1;
       const iman = o.iman ? 1e6 : o.tipo === "moneda" ? JUGADOR.recogerMonedas : 15;
       if (o.iman && o.t > 0.35) {                    // al acabar la ronda vuelan hasta ti
@@ -977,6 +1003,17 @@ export class Juego {
       if (d < 9 && o.t > 0.35) {
         if (o.tipo === "moneda") { this.stats.monedas++; this.monedas++; sonar("moneda", 0.03); }
         else if (o.tipo === "flecha") { j.reserva.ballesta++; sonar("recargado", 0.05); }
+        else if (o.tipo === "municion") {
+          // Munición para el arma que llevas (o para otra que no esté llena)
+          const n = this.armaSinLlenar(), m = MUNICION[n], antes = j.reserva[n];
+          j.reserva[n] = Math.min(m.maximo, j.reserva[n] + Math.ceil(m.lote / 2));
+          this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: "+" + (j.reserva[n] - antes) + " " + t(n), color: "#f2c84a" });
+          sonar("recargado");
+        } else if (o.tipo === "granada") {
+          j.lanzables.granada++;
+          this.flotantes.push({ x: j.x, y: j.y - 48, t: 0, txt: "+1 " + t("granada"), color: "#f2c84a" });
+          sonar("recargado");
+        }
         else if (o.tipo === "botiquin") {
           const antes = j.vida;
           j.vida = Math.min(JUGADOR.vida, j.vida + BOTIN.curaBotiquin);
@@ -987,7 +1024,7 @@ export class Juego {
       }
     }
     // Las monedas no caducan (se recogen al acabar la ronda); los botiquines sí
-    this.botin = this.botin.filter((o) => !o.recogido && (o.tipo === "moneda" || o.tipo === "flecha" || o.t < BOTIN.duracionEnSuelo));
+    this.botin = this.botin.filter((o) => !o.recogido && (o.tipo !== "botiquin" || o.t < BOTIN.duracionEnSuelo));
   }
 
   moverEfectos(dt) {
@@ -1214,6 +1251,7 @@ export class Juego {
     g.translate(-cx, -cy);
     this.dibujarOjos(g);
     marcasSupervivientes(this, g);
+    barrasObjetos(this, g);
     // Vida de los tramos del muro que están recibiendo golpes
     for (const tr of this.base.tramos) {
       tr.barra = Math.max(0, tr.barra - 1 / 60);
@@ -1279,6 +1317,7 @@ export class Juego {
     for (const o of this.lanzados) if (o.tipo === "molotov") foco(o.x, o.y - o.z, 22, 0.8, "255,150,60");
     for (const e of this.explosiones) foco(e.x, e.y - 10, 150 * (1 - e.t / 0.6), 1, "255,190,90");
     lucesDefensas(this, foco);
+    lucesObjetos(this, foco);
     g.drawImage(this.capaLuz, 0, 0);
     // Tinte cálido de las luces
     g.globalCompositeOperation = "lighter";
@@ -1438,10 +1477,17 @@ export class Juego {
   dibujarObjeto(g, o) {
     const spr = S[o.tipo];
     const i = o.tipo === "hoguera" ? fotograma(spr, "arder", this.t + o.t0) : o.f;
+    if (OBJETOS[o.tipo]) return dibujarDestruible(this, g, o, dibujar, i);
     dibujar(g, spr, i, o.x - o.base.x, o.y - o.base.y);
   }
 
   dibujarBotin(g, o) {
+    if (o.tipo === "municion" || o.tipo === "granada") {   // caja de munición o granada tirada
+      const s = S.proyectiles;
+      const flota = o.z === 0 ? Math.round(Math.sin(o.t * 4)) : 0;
+      if (s) dibujar(g, s, o.tipo === "granada" ? 0 : 4, Math.round(o.x) - 6, Math.round(o.y - o.z) - 11 + flota);
+      return;
+    }
     if (o.tipo === "flecha") {           // virote clavado en el suelo
       const s = S.proyectiles;
       if (s) dibujar(g, s, 3, Math.round(o.x) - 6, Math.round(o.y - o.z) - 10, o.voltear);

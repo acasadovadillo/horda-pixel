@@ -55,7 +55,15 @@ local function viroteClavado(img)
   puntos(img, { { 7, 10 }, { 8, 10 }, { 10, 10 } }, TIERRA[3]); puntos(img, { { 9, 10 }, { 8, 11 } }, TIERRA[2])
 end
 
-L.construir("proyectiles", P, P, { granada, molotov, viroteVolando, viroteClavado }, {}, 0.1)
+-- Caja de munición (botín que sale de cajas, contenedores y coches)
+local function cajaMunicion(img)
+  local filas = { "bbbbbbbbb", "cddddddcb", "cdeeeedcb", "cddddddcb", "ccccccccb", "aaaaaaaaa" }
+  L.pintar(img, filas, 1, 4, { a = OLIVA[1], b = OLIVA[2], c = OLIVA[3], d = OLIVA[4], e = L.col("senal", 3) })
+  L.px(img, 4, 3, ME[4]); L.px(img, 7, 3, ME[4])                  -- asas
+  L.contorno(img, TI[1])
+end
+
+L.construir("proyectiles", P, P, { granada, molotov, viroteVolando, viroteClavado, cajaMunicion }, {}, 0.1)
 
 ---------------------------------------------------------------- fuego
 local FW, FH = 14, 18

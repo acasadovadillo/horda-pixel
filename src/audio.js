@@ -280,6 +280,10 @@ const SONIDOS = {
   cepo() { golpeDeRuido(0.7, 0.08, "highpass", 1800, 0.8); tono("triangle", 300, 120, 0.4, 0.1); },
   mordisco() { golpeDeRuido(0.45, 0.07, "bandpass", 900, 1.2); tono("square", 220, 110, 0.12, 0.06); },
   picotazo() { golpeDeRuido(0.3, 0.03, "highpass", 2500, 1); },
+  golpeMetal() { tono("triangle", 900 + Math.random() * 300, 500, 0.15, 0.12); golpeDeRuido(0.25, 0.05, "highpass", 2500, 1); },
+  golpeMadera() { golpeDeRuido(0.4, 0.06, "bandpass", 700, 1.4); tono("triangle", 220, 140, 0.15, 0.06); },
+  golpeHojas() { golpeDeRuido(0.25, 0.12, "highpass", 3000, 0.6); },
+  romper() { golpeDeRuido(0.6, 0.25, "lowpass", 1400, 0.7); golpeDeRuido(0.3, 0.12, "highpass", 2600, 0.8, 0.05); },
   prender() { golpeDeRuido(0.5, 0.6, "lowpass", 700, 0.7, 0.05); },
 };
 
