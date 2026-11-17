@@ -27,20 +27,46 @@ function vacio() {
     totales: { partidas: 0, bajas: 0, monedas: 0, tiempo: 0, rescatados: 0, bajasCuerpo: 0, bajasFuego: 0, rondaMax: 0 },
     mejores: { ronda: 0, bajas: 0, monedas: 0, tiempo: 0 },
     traje: "original", mascota: "ninguna",
+    actualizado: 0,             // cuándo se cambió por última vez (para saber qué traje y mascota valen al mezclar)
   };
 }
 
 let perfil = cargar();
+let alGuardar = null;           // la nube (nube.js) se apunta para subir cada cambio
 
+function completar(p) {
+  const v = vacio();
+  return { ...v, ...p, totales: { ...v.totales, ...p.totales }, mejores: { ...v.mejores, ...p.mejores }, partidas: Array.isArray(p.partidas) ? p.partidas : [] };
+}
 function cargar() {
   try {
     const p = JSON.parse(localStorage.getItem(CLAVE));
-    if (p && p.totales) { const v = vacio(); return { ...v, ...p, totales: { ...v.totales, ...p.totales }, mejores: { ...v.mejores, ...p.mejores } }; }
+    if (p && p.totales) return completar(p);
   } catch (e) { /* sin almacenamiento o dañado: se empieza de cero */ }
   return vacio();
 }
-function guardar() {
+function guardar(cambio = true) {
+  if (cambio) perfil.actualizado = Date.now();
   try { localStorage.setItem(CLAVE, JSON.stringify(perfil)); } catch (e) { /* no pasa nada si no se guarda */ }
+  if (cambio) alGuardar?.(perfil);
+}
+export function avisarAlGuardar(f) { alGuardar = f; }
+
+// Mezcla el perfil de la nube con el de este móvil quedándose con lo mejor de cada lado: las partidas
+// de los dos (sin repetir), el mayor de cada total y de cada marca, y el traje y la mascota del más reciente.
+// Devuelve true si el perfil de aquí ha cambiado.
+export function mezclarPerfil(otro) {
+  if (!otro || !otro.totales) return false;
+  const o = completar(otro), antes = JSON.stringify(perfil);
+  const vistas = new Set(perfil.partidas.map((x) => x.fecha));
+  perfil.partidas = [...perfil.partidas, ...o.partidas.filter((x) => !vistas.has(x.fecha))]
+    .sort((a, b) => b.fecha - a.fecha).slice(0, MAX_PARTIDAS);
+  for (const k of Object.keys(perfil.totales)) perfil.totales[k] = Math.max(perfil.totales[k] || 0, o.totales[k] || 0);
+  for (const k of Object.keys(perfil.mejores)) perfil.mejores[k] = Math.max(perfil.mejores[k] || 0, o.mejores[k] || 0);
+  if ((o.actualizado || 0) > (perfil.actualizado || 0)) { perfil.traje = o.traje; perfil.mascota = o.mascota; perfil.actualizado = o.actualizado; }
+  const cambio = JSON.stringify(perfil) !== antes;
+  if (cambio) guardar(false);
+  return cambio;
 }
 
 export const leerPerfil = () => perfil;

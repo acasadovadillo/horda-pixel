@@ -38,6 +38,8 @@ Objetivo: en vez de un único puesto con pestañas, varios comercios dentro de l
 
 ## 3. Cuenta y login
 
+Código hecho el 2026-11-17 (versión .6) con Firebase. Falta que el usuario cree el proyecto: pasos en docs/cuentas.md.
+
 Objetivo: una cuenta para no perder el progreso al cambiar de móvil.
 
 - **Servicio**: Firebase (Authentication + Firestore) o Supabase; los dos tienen plan gratuito y funcionan con un juego sin servidor propio como este. La cuenta del servicio la crea el usuario.

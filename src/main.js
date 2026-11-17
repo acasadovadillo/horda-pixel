@@ -5,6 +5,7 @@ import { Juego } from "./juego.js";
 import { PANTALLA } from "./config.js";
 import { aplicarAPagina } from "./idioma.js";
 import { ANCHO, T } from "./mapa.js";
+import { iniciarNube } from "./nube.js";
 
 const lienzo = document.getElementById("juego");
 const g = lienzo.getContext("2d");
@@ -80,6 +81,7 @@ async function arrancar() {
   window.addEventListener("orientationchange", () => setTimeout(ajustar, 300));
   iniciarEntrada(lienzo, aJuego);
   document.getElementById("cargando")?.remove();
+  iniciarNube();               // cuenta en la nube, si está activada (no hace esperar al juego)
 
   let antes = performance.now();
   const bucle = (ahora) => {

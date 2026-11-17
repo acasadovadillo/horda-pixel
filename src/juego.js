@@ -11,6 +11,9 @@ import { crearComercios, comercioCerca, cosasComercios, marcasComercios } from "
 import { pantallaTienda } from "./tienda.js";
 import { crearDefensas, moverDefensas, deslumbrado, ponerTrampa, cadena, balaABarril, finDeRonda, cosasDefensas, dibujarTrampasSuelo, lucesDefensas } from "./defensas.js";
 import { leerPerfil, apuntarPartida, TRAJES } from "./perfil.js";
+import { configurada, estado as nube } from "./nube.js";
+import { abrirCuenta, cuentaAbierta } from "./cuenta.js";
+
 import { crearEdificios, moverEdificios, chocarPuertas, paredCerca, golpearPared, dibujarPared } from "./edificios.js";
 import { OBJETOS, prepararDestruibles, balaAObjeto, golpeArea, golpeCuerpo, prender, moverObjetos, dibujarDestruible, barrasObjetos, lucesObjetos } from "./destruir.js";
 import { crearMascota, moverMascota, cosasMascota } from "./mascotas.js";
@@ -19,6 +22,7 @@ import { quizaSuperviviente, moverSupervivientes, herirSuperviviente, cosasSuper
 import { t, idioma, cambiarIdioma } from "./idioma.js";
 
 const ORDEN_ARMAS = ARMAS_FUEGO;               // armas de fuego, en el orden de la barra
+const PRUEBA_CUENTA = new URLSearchParams(location.search).get("cuenta") === "prueba";
 const CASILLAS = ["cuerpo", ...ARMAS_FUEGO];    // la primera casilla es el arma de cuerpo a cuerpo que llevas
 const TODAS = [...CUERPO, ...ARMAS_FUEGO];
 const G = 330;
@@ -1843,6 +1847,11 @@ export class Juego {
     texto(g, t("prototipo") + " 0.4", W / 2, H - 16, "#85837a", "centro");
     this.boton(0, 0, W, H, () => this.empezar());
     this.selectorIdioma(g, W - 6 - this.anchoSelector(), 6);
+    // Cuenta (solo si las cuentas están activadas; ?cuenta=prueba la enseña para probar el panel). Verde si has entrado.
+    if (configurada() || PRUEBA_CUENTA) {
+      const bc = anchoTexto(t("cuenta"), 2) + 24;
+      this.botonGrande(g, t("cuenta"), 6, () => { if (!cuentaAbierta()) { abrirCuenta(); sonar("boton"); } }, nube.usuario ? "#4a6a34" : "#34363d", 6, bc);
+    }
     // Personaje (trajes y mascotas) y estadísticas de partidas anteriores, en las esquinas de abajo
     const bp = anchoTexto(t("personaje"), 2) + 24, be = anchoTexto(t("estadisticas"), 2) + 24;
     this.botonGrande(g, t("personaje"), H - 38, () => { this.verPersonaje = true; this.infoTraje = this.infoMascota = null; sonar("boton"); }, "#3b526b", 6, bp);
