@@ -30,7 +30,7 @@ Objetivo: en vez de un único puesto con pestañas, varios comercios dentro de l
 - **Constructor**: enfermería, taller y armería.
 - **Cómo se compra**: al acercarte a un comercio aparece su botón y se abre solo su parte de la tienda, con el juego parado como ahora.
 - **Dibujos**: una caseta por comercio y un vendedor por caseta (personas recoloreadas, como los supervivientes, o dibujos nuevos).
-- **Pendiente de confirmar**: si «todos disponibles» significa esto (varios comercios) o que todo se pueda comprar desde el principio sin desbloquear.
+- Confirmado por el usuario (2026-11-17): varios comercios, uno por vendedor.
 
 ## 3. Cuenta y login
 
